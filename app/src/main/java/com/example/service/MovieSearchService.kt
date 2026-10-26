@@ -29,7 +29,9 @@ data class GlobalSearchResponse(
 class MovieSearchService(
     private val wikipediaProvider: WikipediaSearchProvider = WikipediaSearchProvider(),
     private val tvMazeProvider: TvMazeSearchProvider = TvMazeSearchProvider(),
-    private val animeProvider: AnimeSearchProvider = AnimeSearchProvider()
+    private val animeProvider: AnimeSearchProvider = AnimeSearchProvider(),
+    private val imdbProvider: ImdbSearchProvider = ImdbSearchProvider(),
+    private val collectionProvider: CollectionSearchProvider = CollectionSearchProvider()
 ) {
     // In-memory query cache with composite key
     private val cache = ConcurrentHashMap<String, List<DiscoveredMovie>>()
@@ -84,7 +86,7 @@ class MovieSearchService(
         val isYearQuery = clean.matches(Regex("^(19\\d{2}|20[0-2]\\d|2030)$"))
         val targetYear = if (isYearQuery) clean.toInt() else null
 
-        val cacheKey = "global_${clean.lowercase()}_${filterType ?: "all"}_page_$page"
+        val cacheKey = "global_v2_${clean.lowercase()}_${filterType ?: "all"}_page_${page}_size_$pageSize"
         val cached = cache[cacheKey]
         val cachedSuggestion = suggestionCache[clean.lowercase()]
         if (cached != null) {
@@ -126,6 +128,8 @@ class MovieSearchService(
                     val wikiTask = async { wikipediaProvider.search(clean) }
                     val tvMazeTask = async { tvMazeProvider.search(clean) }
                     val animeTask = async { animeProvider.search(clean) }
+                    val imdbTask = async { imdbProvider.search(clean) }
+                    val collectionTask = async { collectionProvider.search(clean) }
                     val suggestionTask = async {
                         if (didYouMean == null && clean.length >= 3) {
                             wikipediaProvider.getFuzzySuggestion(clean)
@@ -135,6 +139,8 @@ class MovieSearchService(
                     val wikiResults = wikiTask.await()
                     val tvResults = tvMazeTask.await()
                     val animeResults = animeTask.await()
+                    val imdbResults = imdbTask.await()
+                    val collectionResults = collectionTask.await()
                     val fetchedSuggestion = suggestionTask.await()
 
                     if (fetchedSuggestion != null && !fetchedSuggestion.equals(clean, ignoreCase = true)) {
@@ -142,12 +148,20 @@ class MovieSearchService(
                         suggestionCache[clean.lowercase()] = fetchedSuggestion
                     }
 
-                    for (item in wikiResults + tvResults + animeResults) {
+                    // Put the title-first IMDb matches and collection browse results first.
+                    // They make broad Marvel/Hollywood searches useful and preserve direct
+                    // feature-film matches that Wikipedia's article search may omit.
+                    for (item in imdbResults + collectionResults + wikiResults + tvResults + animeResults) {
                         val key = "${item.title.lowercase()}_${item.releaseYear ?: 0}_${item.contentType}"
                         if (!seenKeys.contains(key)) {
                             seenKeys.add(key)
-                            // Score with FuzzyRelevanceRanker
-                            val (score, reason) = FuzzyRelevanceRanker.scoreAndExplain(item, clean)
+                            // Broad collection searches are intentional browse requests, not
+                            // loose title matches. Keep that useful collection at the top.
+                            val (score, reason) = if (item.sourceName == collectionProvider.providerName) {
+                                88f to "Featured collection"
+                            } else {
+                                FuzzyRelevanceRanker.scoreAndExplain(item, clean)
+                            }
                             allResults.add(item.copy(relevanceScore = score, matchReason = reason))
                         }
                     }
