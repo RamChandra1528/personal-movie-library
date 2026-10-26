@@ -73,6 +73,7 @@ import com.example.R
 import com.example.data.MovieEntity
 import com.example.data.WatchStatus
 import com.example.ui.SortOrder
+import com.example.ui.components.CineVaultTopBar
 import com.example.ui.components.MovieCard
 import com.example.ui.theme.CineCardBorder
 import com.example.ui.theme.CineCyan
@@ -105,6 +106,10 @@ fun DashboardScreen(
     onToggleFavorite: (MovieEntity) -> Unit,
     onOpenAddDialog: () -> Unit,
     onOpenGlobalSearch: () -> Unit,
+    onOpenStats: () -> Unit,
+    currentUser: com.google.firebase.auth.FirebaseUser? = null,
+    isSyncing: Boolean = false,
+    onOpenAccount: () -> Unit = {},
     onDismissNotification: () -> Unit
 ) {
     var quickInput by remember { mutableStateOf("") }
@@ -117,6 +122,16 @@ fun DashboardScreen(
         color = CineDarkBg
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
+            // CineVault Top Bar
+            CineVaultTopBar(
+                onOpenGlobalSearch = onOpenGlobalSearch,
+                onOpenStats = onOpenStats,
+                onAddNewMovie = onOpenAddDialog,
+                currentUser = currentUser,
+                isSyncing = isSyncing,
+                onOpenAccount = onOpenAccount
+            )
+
             // Notification / Success Bar
             AnimatedVisibility(visible = notificationMessage != null) {
                 notificationMessage?.let { msg ->

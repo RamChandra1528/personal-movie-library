@@ -17,8 +17,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
 
 data class SyncStatus(
@@ -48,9 +46,7 @@ class FirestoreSyncRepository(
     )
 
     private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val mergeMutex = Mutex()
     private var moviesSnapshotListener: ListenerRegistration? = null
-    @Volatile
     private var activeUserId: String? = null
 
     private val _syncStatus = MutableStateFlow(SyncStatus())
@@ -66,7 +62,6 @@ class FirestoreSyncRepository(
      */
     fun startSync(userId: String) {
         if (activeUserId == userId && moviesSnapshotListener != null) return
-        val previousUserId = activeUserId
         stopSync()
         activeUserId = userId
 
@@ -98,7 +93,17 @@ class FirestoreSyncRepository(
                             }
                         }
 
-                        mergeCloudMovies(cloudMovies)
+                        // Merge cloud movies into Room
+                        for (cloudMovie in cloudMovies) {
+                            val existingLocal = movieDao.findByExactTitle(cloudMovie.title)
+                            if (existingLocal != null) {
+                                val updated = cloudMovie.toEntity(localId = existingLocal.id)
+                                movieDao.updateMovie(updated)
+                            } else {
+                                val newEntity = cloudMovie.toEntity(localId = 0)
+                                movieDao.insertMovie(newEntity)
+                            }
+                        }
 
                         _syncStatus.value = SyncStatus(
                             isSyncing = false,
@@ -119,22 +124,6 @@ class FirestoreSyncRepository(
 
         // Also fetch search history
         loadSearchHistory(userId)
-
-        // Do a deterministic first merge before backing up. Previously the ViewModel read a
-        // lazily started UI flow here; on a cold launch it was often still empty, so backup and
-        // restore could be skipped or race each other. This job owns the initial sequence and
-        // uses Room directly, which also makes an uninstall/reinstall restore dependable.
-        repositoryScope.launch {
-            if (previousUserId != null && previousUserId != userId) {
-                // Wipe previous user's cached movies to guarantee clean user separation
-                try {
-                    movieDao.deleteAllMovies()
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error clearing local cache for user switch", e)
-                }
-            }
-            restoreThenBackUpMissingMovies(userId, moviesCol)
-        }
     }
 
     fun stopSync() {
@@ -213,67 +202,6 @@ class FirestoreSyncRepository(
                 isSyncing = false,
                 errorMessage = e.localizedMessage ?: "Backup failed"
             )
-        }
-    }
-
-    /**
-     * Restore the signed-in user's cloud vault first, then upload only local movies which are
-     * absent from the cloud. Cloud data wins for duplicates during this initial pass, avoiding
-     * an old device cache overwriting a newer cloud record after reinstalling the app.
-     */
-    private suspend fun restoreThenBackUpMissingMovies(
-        userId: String,
-        moviesCol: com.google.firebase.firestore.CollectionReference
-    ) {
-        try {
-            val snapshot = moviesCol.get().await()
-            if (activeUserId != userId) return
-            val cloudMovies = snapshot.documents.mapNotNull { doc ->
-                try {
-                    doc.toObject(CloudMovie::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error deserializing cloud movie: ${doc.id}", e)
-                    null
-                }
-            }
-            mergeCloudMovies(cloudMovies)
-            if (activeUserId != userId) return
-
-            val cloudIds = snapshot.documents.map { it.id }.toHashSet()
-            val localMovies = movieDao.getAllMoviesOnce()
-            localMovies
-                .filter { makeDocId(it) !in cloudIds }
-                .forEach { uploadMovie(userId, it) }
-
-            _syncStatus.value = SyncStatus(
-                isSyncing = false,
-                lastSyncedTime = System.currentTimeMillis(),
-                cloudCount = maxOf(cloudMovies.size, localMovies.size),
-                errorMessage = null
-            )
-        } catch (e: Exception) {
-            Log.e(TAG, "Initial cloud restore/backup failed", e)
-            _syncStatus.value = _syncStatus.value.copy(
-                isSyncing = false,
-                errorMessage = e.localizedMessage ?: "Cloud sync failed"
-            )
-        }
-    }
-
-    private suspend fun mergeCloudMovies(cloudMovies: List<CloudMovie>) {
-        // The snapshot listener and initial restore can arrive together. Serializing their
-        // read-then-insert work prevents duplicate Room rows on a fresh install.
-        mergeMutex.withLock {
-            for (cloudMovie in cloudMovies) {
-                // A title alone is not a stable key: remakes commonly share a title. Match the
-                // same title and release year so both records survive local/cloud reconciliation.
-                val existingLocal = movieDao.findByTitleAndYear(cloudMovie.title, cloudMovie.releaseYear)
-                if (existingLocal != null) {
-                    movieDao.updateMovie(cloudMovie.toEntity(localId = existingLocal.id))
-                } else {
-                    movieDao.insertMovie(cloudMovie.toEntity(localId = 0))
-                }
-            }
         }
     }
 

@@ -27,7 +27,6 @@ import com.example.ui.screens.MovieDetailsScreen
 import com.example.ui.screens.StatsScreen
 import androidx.activity.compose.BackHandler
 import com.example.ui.screens.AccountSyncDialog
-import com.example.ui.components.CineVaultBottomBar
 import com.example.ui.theme.CineVaultTheme
 
 class MainActivity : ComponentActivity() {
@@ -93,19 +92,7 @@ fun CineVaultApp(viewModel: MovieViewModel) {
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        contentWindowInsets = WindowInsets.safeDrawing,
-        bottomBar = {
-            CineVaultBottomBar(
-                currentScreen = currentScreen,
-                onOpenVault = { viewModel.navigateTo(Screen.DASHBOARD) },
-                onOpenGlobalSearch = { viewModel.navigateTo(Screen.GLOBAL_SEARCH) },
-                onOpenStats = { viewModel.navigateTo(Screen.STATS) },
-                onAddNewMovie = viewModel::openAddDialog,
-                currentUser = currentUser,
-                isSyncing = syncStatus.isSyncing,
-                onOpenAccount = viewModel::openAccountDialog
-            )
-        }
+        contentWindowInsets = WindowInsets.safeDrawing
     ) { innerPadding ->
         Box(
             modifier = Modifier
@@ -135,6 +122,10 @@ fun CineVaultApp(viewModel: MovieViewModel) {
                         onToggleFavorite = viewModel::toggleFavorite,
                         onOpenAddDialog = viewModel::openAddDialog,
                         onOpenGlobalSearch = { viewModel.navigateTo(Screen.GLOBAL_SEARCH) },
+                        onOpenStats = { viewModel.navigateTo(Screen.STATS) },
+                        currentUser = currentUser,
+                        isSyncing = syncStatus.isSyncing,
+                        onOpenAccount = viewModel::openAccountDialog,
                         onDismissNotification = viewModel::clearNotification
                     )
                 }
@@ -217,9 +208,6 @@ fun CineVaultApp(viewModel: MovieViewModel) {
                     isSigningIn = isSigningIn,
                     authError = authError,
                     onSignInWithGoogle = viewModel::signInWithGoogle,
-                    onSignInWithEmail = viewModel::signInWithEmail,
-                    onRegisterWithEmail = viewModel::registerWithEmail,
-                    onResetPassword = viewModel::sendPasswordReset,
                     onSignOut = viewModel::signOut,
                     onForceSync = viewModel::forceSyncAll,
                     onDismiss = viewModel::closeAccountDialog

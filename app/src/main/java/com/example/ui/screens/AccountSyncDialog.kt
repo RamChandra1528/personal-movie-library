@@ -3,7 +3,6 @@ package com.example.ui.screens
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,28 +13,23 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Devices
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -45,34 +39,18 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
-import androidx.compose.material3.TabRowDefaults
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -105,21 +83,11 @@ fun AccountSyncDialog(
     isSigningIn: Boolean,
     authError: String?,
     onSignInWithGoogle: (android.content.Context) -> Unit,
-    onSignInWithEmail: (email: String, pass: String) -> Unit,
-    onRegisterWithEmail: (email: String, pass: String) -> Unit,
-    onResetPassword: (email: String) -> Unit,
     onSignOut: () -> Unit,
     onForceSync: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
-    val focusManager = LocalFocusManager.current
-
-    var selectedAuthMethod by remember { mutableIntStateOf(0) } // 0 = Email, 1 = Google
-    var isRegisterMode by remember { mutableStateOf(false) }
-    var emailInput by remember { mutableStateOf("") }
-    var passwordInput by remember { mutableStateOf("") }
-    var passwordVisible by remember { mutableStateOf(false) }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -128,7 +96,7 @@ fun AccountSyncDialog(
         Surface(
             modifier = Modifier
                 .testTag("account_sync_dialog")
-                .fillMaxWidth(0.94f)
+                .fillMaxWidth(0.92f)
                 .clip(RoundedCornerShape(20.dp))
                 .border(1.dp, CineCardBorder, RoundedCornerShape(20.dp)),
             color = CineSurface
@@ -136,30 +104,28 @@ fun AccountSyncDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(22.dp)
+                    .padding(24.dp)
             ) {
-                // Header with custom logo and close button
+                // Header with close button
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        CineVaultLogo(sizeDp = 36)
+                        CineVaultLogo(sizeDp = 34)
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = "Personal Movie Library",
+                                text = "Cloud Vault & Account",
                                 color = CineTextPrimary,
-                                fontSize = 17.sp,
+                                fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "Cloud Vault & Multi-Device Sync",
-                                color = CineGold,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium
+                                text = "Multi-device synchronization",
+                                color = CineTextSecondary,
+                                fontSize = 12.sp
                             )
                         }
                     }
@@ -178,10 +144,10 @@ fun AccountSyncDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
                 if (currentUser != null) {
-                    // ==================== SIGNED IN VIEW ====================
+                    // SIGNED IN VIEW
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = CineSurfaceVariant),
@@ -195,7 +161,7 @@ fun AccountSyncDialog(
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(50.dp)
+                                    .size(48.dp)
                                     .clip(CircleShape)
                                     .background(
                                         Brush.linearGradient(listOf(CineGold, CineCyan))
@@ -205,7 +171,7 @@ fun AccountSyncDialog(
                                 Text(
                                     text = (currentUser.displayName ?: currentUser.email ?: "U").take(1).uppercase(),
                                     color = CineDarkBg,
-                                    fontSize = 22.sp,
+                                    fontSize = 20.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -214,13 +180,13 @@ fun AccountSyncDialog(
 
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = currentUser.displayName ?: (currentUser.email?.substringBefore("@") ?: "Member"),
+                                    text = currentUser.displayName ?: "CineVault Member",
                                     color = CineTextPrimary,
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
                                 Text(
-                                    text = currentUser.email ?: "Authenticated Account",
+                                    text = currentUser.email ?: "",
                                     color = CineTextSecondary,
                                     fontSize = 13.sp
                                 )
@@ -244,9 +210,9 @@ fun AccountSyncDialog(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                    // Account identifiers & security
+                    // Sync stats & status
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = CineDarkBg),
@@ -260,54 +226,24 @@ fun AccountSyncDialog(
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
-                                        imageVector = Icons.Default.Fingerprint,
-                                        contentDescription = null,
-                                        tint = CineGold,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "Account UID",
-                                        color = CineTextSecondary,
-                                        fontSize = 12.sp
-                                    )
-                                }
-                                Text(
-                                    text = currentUser.uid.take(12) + "...",
-                                    color = CineTextTertiary,
-                                    fontSize = 12.sp,
-                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(10.dp))
-                            HorizontalDivider(color = CineSurfaceVariant, thickness = 1.dp)
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
                                         imageVector = Icons.Default.CloudDone,
                                         contentDescription = null,
                                         tint = CineCyan,
-                                        modifier = Modifier.size(16.dp)
+                                        modifier = Modifier.size(18.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         text = "Cloud Status",
-                                        color = CineTextSecondary,
-                                        fontSize = 12.sp
+                                        color = CineTextPrimary,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium
                                     )
                                 }
 
                                 if (syncStatus.isSyncing) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         CircularProgressIndicator(
-                                            modifier = Modifier.size(12.dp),
+                                            modifier = Modifier.size(14.dp),
                                             color = CineGold,
                                             strokeWidth = 2.dp
                                         )
@@ -325,18 +261,25 @@ fun AccountSyncDialog(
                                     } ?: "Up to date"
                                     Text(
                                         text = lastTimeStr,
-                                        color = CineTextPrimary,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Medium
+                                        color = CineTextSecondary,
+                                        fontSize = 12.sp
                                     )
                                 }
                             }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "All movies, watchlists, ratings, notes, and search history automatically persist across devices and reinstalls.",
+                                color = CineTextTertiary,
+                                fontSize = 12.sp,
+                                lineHeight = 16.sp
+                            )
                         }
                     }
 
                     // Cloud search history snippet
                     if (cloudSearchHistory.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(14.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
                         Text(
                             text = "Recently Synced Searches",
                             color = CineGold,
@@ -433,14 +376,14 @@ fun AccountSyncDialog(
                         }
                     }
                 } else {
-                    // ==================== SIGNED OUT VIEW ====================
+                    // SIGNED OUT VIEW
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(58.dp)
+                                .size(64.dp)
                                 .clip(CircleShape)
                                 .background(CineSurfaceVariant),
                             contentAlignment = Alignment.Center
@@ -449,11 +392,11 @@ fun AccountSyncDialog(
                                 imageVector = Icons.Default.CloudSync,
                                 contentDescription = null,
                                 tint = CineGold,
-                                modifier = Modifier.size(32.dp)
+                                modifier = Modifier.size(36.dp)
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(14.dp))
 
                         Text(
                             text = "Backup & Restore Your Collection",
@@ -463,307 +406,25 @@ fun AccountSyncDialog(
                             textAlign = TextAlign.Center
                         )
 
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         Text(
-                            text = "Sign in to keep your watch history, ratings, and notes safe across devices and reinstalls.",
+                            text = "Sign in with Google to protect your movie vault. All your watch history, personal ratings, and notes restore seamlessly across devices and reinstalls.",
                             color = CineTextSecondary,
-                            fontSize = 12.sp,
+                            fontSize = 13.sp,
                             textAlign = TextAlign.Center,
-                            lineHeight = 17.sp
+                            lineHeight = 18.sp
                         )
 
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Tab selector: Email & Password vs Google Sign-In
-                        TabRow(
-                            selectedTabIndex = selectedAuthMethod,
-                            containerColor = CineDarkBg,
-                            contentColor = CineGold,
-                            indicator = { tabPositions ->
-                                TabRowDefaults.SecondaryIndicator(
-                                    Modifier.tabIndicatorOffset(tabPositions[selectedAuthMethod]),
-                                    color = CineGold
-                                )
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                        ) {
-                            Tab(
-                                selected = selectedAuthMethod == 0,
-                                onClick = { selectedAuthMethod = 0 },
-                                text = { Text("Email Login", fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
-                            )
-                            Tab(
-                                selected = selectedAuthMethod == 1,
-                                onClick = { selectedAuthMethod = 1 },
-                                text = { Text("Google Sign-In", fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        if (selectedAuthMethod == 0) {
-                            // EMAIL & PASSWORD FORM
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(CineDarkBg, RoundedCornerShape(8.dp))
-                                    .padding(4.dp),
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(if (!isRegisterMode) CineSurfaceVariant else Color.Transparent)
-                                        .clickable { isRegisterMode = false }
-                                        .padding(vertical = 6.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = "Log In",
-                                        color = if (!isRegisterMode) CineGold else CineTextSecondary,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(if (isRegisterMode) CineSurfaceVariant else Color.Transparent)
-                                        .clickable { isRegisterMode = true }
-                                        .padding(vertical = 6.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = "Create Account",
-                                        color = if (isRegisterMode) CineGold else CineTextSecondary,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            OutlinedTextField(
-                                value = emailInput,
-                                onValueChange = { emailInput = it },
-                                modifier = Modifier
-                                    .testTag("email_input")
-                                    .fillMaxWidth(),
-                                label = { Text("Email Address", fontSize = 13.sp) },
-                                leadingIcon = {
-                                    Icon(
-                                        Icons.Default.Email,
-                                        contentDescription = null,
-                                        tint = CineGold,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                },
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(
-                                    keyboardType = KeyboardType.Email,
-                                    imeAction = ImeAction.Next
-                                ),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = CineGold,
-                                    unfocusedBorderColor = CineCardBorder,
-                                    focusedTextColor = CineTextPrimary,
-                                    unfocusedTextColor = CineTextPrimary,
-                                    cursorColor = CineGold
-                                ),
-                                shape = RoundedCornerShape(10.dp)
-                            )
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            OutlinedTextField(
-                                value = passwordInput,
-                                onValueChange = { passwordInput = it },
-                                modifier = Modifier
-                                    .testTag("password_input")
-                                    .fillMaxWidth(),
-                                label = { Text("Password", fontSize = 13.sp) },
-                                leadingIcon = {
-                                    Icon(
-                                        Icons.Default.Lock,
-                                        contentDescription = null,
-                                        tint = CineGold,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                },
-                                trailingIcon = {
-                                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                        Icon(
-                                            imageVector = if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                            contentDescription = "Toggle password visibility",
-                                            tint = CineTextSecondary,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                },
-                                singleLine = true,
-                                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                                keyboardOptions = KeyboardOptions(
-                                    keyboardType = KeyboardType.Password,
-                                    imeAction = ImeAction.Done
-                                ),
-                                keyboardActions = KeyboardActions(
-                                    onDone = {
-                                        focusManager.clearFocus()
-                                        if (isRegisterMode) {
-                                            onRegisterWithEmail(emailInput, passwordInput)
-                                        } else {
-                                            onSignInWithEmail(emailInput, passwordInput)
-                                        }
-                                    }
-                                ),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = CineGold,
-                                    unfocusedBorderColor = CineCardBorder,
-                                    focusedTextColor = CineTextPrimary,
-                                    unfocusedTextColor = CineTextPrimary,
-                                    cursorColor = CineGold
-                                ),
-                                shape = RoundedCornerShape(10.dp)
-                            )
-
-                            if (!isRegisterMode) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.End
-                                ) {
-                                    TextButton(
-                                        onClick = { onResetPassword(emailInput) }
-                                    ) {
-                                        Text(
-                                            text = "Forgot password?",
-                                            color = CineGold,
-                                            fontSize = 11.sp
-                                        )
-                                    }
-                                }
-                            } else {
-                                Spacer(modifier = Modifier.height(10.dp))
-                            }
-
-                            Button(
-                                onClick = {
-                                    focusManager.clearFocus()
-                                    if (isRegisterMode) {
-                                        onRegisterWithEmail(emailInput, passwordInput)
-                                    } else {
-                                        onSignInWithEmail(emailInput, passwordInput)
-                                    }
-                                },
-                                modifier = Modifier
-                                    .testTag("email_auth_button")
-                                    .fillMaxWidth()
-                                    .height(48.dp),
-                                enabled = !isSigningIn,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = CineGold,
-                                    contentColor = CineDarkBg
-                                ),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                if (isSigningIn) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(18.dp),
-                                        color = CineDarkBg,
-                                        strokeWidth = 2.dp
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = if (isRegisterMode) "Creating account..." else "Authenticating...",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp
-                                    )
-                                } else {
-                                    Text(
-                                        text = if (isRegisterMode) "Create Account & Sync" else "Sign In to Vault",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp
-                                    )
-                                }
-                            }
-                        } else {
-                            // GOOGLE SIGN-IN TAB
-                            Spacer(modifier = Modifier.height(6.dp))
-
-                            Button(
-                                onClick = { onSignInWithGoogle(context) },
-                                modifier = Modifier
-                                    .testTag("google_sign_in_button")
-                                    .fillMaxWidth()
-                                    .height(48.dp),
-                                enabled = !isSigningIn,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color.White,
-                                    contentColor = Color(0xFF1F1F1F)
-                                ),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                if (isSigningIn) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(18.dp),
-                                        color = CineDarkBg,
-                                        strokeWidth = 2.dp
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "Connecting to Google...",
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = Color(0xFF1F1F1F)
-                                    )
-                                } else {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.Center
-                                    ) {
-                                        Text(
-                                            text = "G",
-                                            fontSize = 19.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = Color(0xFF4285F4)
-                                        )
-                                        Spacer(modifier = Modifier.width(10.dp))
-                                        Text(
-                                            text = "Sign in with Google",
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = Color(0xFF1F1F1F)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        // Auth Error
-                        if (authError != null) {
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = authError,
-                                color = Color(0xFFFF6B6B),
-                                fontSize = 12.sp,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(18.dp))
 
                         // Features list
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .background(CineDarkBg, RoundedCornerShape(12.dp))
-                                .padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                .padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             FeatureRow(
                                 icon = Icons.Default.Devices,
@@ -783,6 +444,69 @@ fun AccountSyncDialog(
                                 title = "Private & Secure Vault",
                                 description = "Zero-trust encrypted database rules."
                             )
+                        }
+
+                        // Auth Error
+                        if (authError != null) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = authError,
+                                color = Color(0xFFFF6B6B),
+                                fontSize = 12.sp,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        // Google Sign-In Button
+                        Button(
+                            onClick = { onSignInWithGoogle(context) },
+                            modifier = Modifier
+                                .testTag("google_sign_in_button")
+                                .fillMaxWidth()
+                                .height(50.dp),
+                            enabled = !isSigningIn,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.White,
+                                contentColor = Color(0xFF1F1F1F)
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            if (isSigningIn) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    color = CineDarkBg,
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = "Connecting to Google...",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF1F1F1F)
+                                )
+                            } else {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    // Google "G" icon style
+                                    Text(
+                                        text = "G",
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color(0xFF4285F4)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text(
+                                        text = "Sign in with Google",
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color(0xFF1F1F1F)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -804,7 +528,7 @@ private fun FeatureRow(
     ) {
         Box(
             modifier = Modifier
-                .size(30.dp)
+                .size(32.dp)
                 .clip(CircleShape)
                 .background(iconTint.copy(alpha = 0.15f)),
             contentAlignment = Alignment.Center
@@ -813,7 +537,7 @@ private fun FeatureRow(
                 imageVector = icon,
                 contentDescription = null,
                 tint = iconTint,
-                modifier = Modifier.size(16.dp)
+                modifier = Modifier.size(18.dp)
             )
         }
         Spacer(modifier = Modifier.width(10.dp))
@@ -821,7 +545,7 @@ private fun FeatureRow(
             Text(
                 text = title,
                 color = CineTextPrimary,
-                fontSize = 12.sp,
+                fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold
             )
             Text(

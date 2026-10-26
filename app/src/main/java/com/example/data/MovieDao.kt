@@ -36,13 +36,4 @@ interface MovieDao {
 
     @Query("SELECT * FROM movies WHERE LOWER(title) = LOWER(:title) LIMIT 1")
     suspend fun findByExactTitle(title: String): MovieEntity?
-
-    @Query("SELECT * FROM movies WHERE LOWER(title) = LOWER(:title) AND ((releaseYear = :releaseYear) OR (releaseYear IS NULL AND :releaseYear IS NULL)) LIMIT 1")
-    suspend fun findByTitleAndYear(title: String, releaseYear: Int?): MovieEntity?
-
-    @Query("SELECT * FROM movies ORDER BY addedTimestamp DESC")
-    suspend fun getAllMoviesOnce(): List<MovieEntity>
-
-    @Query("DELETE FROM movies")
-    suspend fun deleteAllMovies()
 }

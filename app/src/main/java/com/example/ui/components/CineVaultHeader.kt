@@ -1,9 +1,9 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,9 +24,6 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,9 +33,12 @@ import com.google.firebase.auth.FirebaseUser
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -51,28 +51,103 @@ import com.example.ui.theme.CineGoldBright
 import com.example.ui.theme.CineSurface
 import com.example.ui.theme.CineTextPrimary
 import com.example.ui.theme.CineTextSecondary
-import com.example.R
-import com.example.ui.Screen
 
-/** Compact version of the Personal Movie Library reel, clapper, and play-mark logo. */
+/**
+ * Custom CineVault Vector Logo:
+ * Draws an artistic film frame surrounding a secure vault combination lock dial.
+ */
 @Composable
 fun CineVaultLogo(
     modifier: Modifier = Modifier,
     sizeDp: Int = 40
 ) {
-    Image(
+    Box(
         modifier = modifier
             .testTag("cinevault_logo")
             .size(sizeDp.dp)
             .clip(RoundedCornerShape(10.dp))
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(Color(0xFF1E2538), Color(0xFF10141E))
+                )
+            )
             .border(
                 1.dp,
-                CineGold,
+                Brush.linearGradient(listOf(CineGold, CineCyan)),
                 RoundedCornerShape(10.dp)
             ),
-        painter = painterResource(R.drawable.ic_personal_movie_library_logo),
-        contentDescription = "Personal Movie Library logo"
-    )
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.size((sizeDp * 0.72f).dp)) {
+            val w = size.width
+            val h = size.height
+
+            // Outer film reel frame
+            drawRoundRect(
+                color = CineGold,
+                size = Size(w, h),
+                cornerRadius = CornerRadius(6f, 6f),
+                style = Stroke(width = 3.5f)
+            )
+
+            // Film perforation sprocket holes on left and right
+            val sprocW = 3.5f
+            val sprocH = 4.5f
+            for (i in 0..3) {
+                val yOffset = h * 0.15f + i * (h * 0.22f)
+                // Left perforation
+                drawRect(
+                    color = CineCyan,
+                    topLeft = Offset(2f, yOffset),
+                    size = Size(sprocW, sprocH)
+                )
+                // Right perforation
+                drawRect(
+                    color = CineCyan,
+                    topLeft = Offset(w - sprocW - 2f, yOffset),
+                    size = Size(sprocW, sprocH)
+                )
+            }
+
+            // Central Vault Dial Ring
+            val center = Offset(w / 2f, h / 2f)
+            val dialRadius = w * 0.28f
+            drawCircle(
+                color = CineGoldBright,
+                center = center,
+                radius = dialRadius,
+                style = Stroke(width = 3f)
+            )
+
+            // Vault dial tick notches
+            for (angle in 0 until 360 step 45) {
+                val rad = Math.toRadians(angle.toDouble())
+                val innerR = dialRadius - 3.5f
+                val outerR = dialRadius + 2f
+                val start = Offset(
+                    center.x + (innerR * Math.cos(rad)).toFloat(),
+                    center.y + (innerR * Math.sin(rad)).toFloat()
+                )
+                val end = Offset(
+                    center.x + (outerR * Math.cos(rad)).toFloat(),
+                    center.y + (outerR * Math.sin(rad)).toFloat()
+                )
+                drawLine(
+                    color = CineCyan,
+                    start = start,
+                    end = end,
+                    strokeWidth = 2f
+                )
+            }
+
+            // Center Vault Knob
+            drawCircle(
+                color = CineCyan,
+                center = center,
+                radius = dialRadius * 0.38f
+            )
+        }
+    }
 }
 
 @Composable
@@ -108,20 +183,20 @@ fun CineVaultTopBar(
                 CineVaultLogo(sizeDp = 38)
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
-                    Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "PERSONAL",
+                            text = "CINE",
                             color = CineTextPrimary,
                             fontWeight = FontWeight.ExtraBold,
-                            fontSize = 10.sp,
+                            fontSize = 19.sp,
                             letterSpacing = 1.sp
                         )
                         Text(
-                            text = "MOVIE LIBRARY",
+                            text = "VAULT",
                             color = CineGold,
                             fontWeight = FontWeight.ExtraBold,
-                            fontSize = 13.sp,
-                            letterSpacing = 0.5.sp
+                            fontSize = 19.sp,
+                            letterSpacing = 1.sp
                         )
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -240,81 +315,3 @@ fun CineVaultTopBar(
         }
     }
 }
-
-/**
- * Primary app navigation. All actions that were formerly in the dashboard header
- * live here so they stay reachable on real devices while scrolling any screen.
- */
-@Composable
-fun CineVaultBottomBar(
-    currentScreen: Screen,
-    onOpenVault: () -> Unit,
-    onOpenGlobalSearch: () -> Unit,
-    onOpenStats: () -> Unit,
-    onAddNewMovie: () -> Unit,
-    currentUser: FirebaseUser?,
-    isSyncing: Boolean,
-    onOpenAccount: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    NavigationBar(
-        modifier = modifier.testTag("cinevault_bottom_bar"),
-        containerColor = CineSurface,
-        contentColor = CineGold,
-        tonalElevation = 8.dp
-    ) {
-        NavigationBarItem(
-            selected = currentScreen == Screen.DASHBOARD,
-            onClick = onOpenVault,
-            icon = { CineVaultLogo(sizeDp = 27) },
-            label = { Text("Vault", fontSize = 10.sp) },
-            colors = bottomBarItemColors()
-        )
-        NavigationBarItem(
-            selected = currentScreen == Screen.GLOBAL_SEARCH,
-            onClick = onOpenGlobalSearch,
-            icon = { Icon(Icons.Default.Search, contentDescription = "Global search") },
-            label = { Text("Discover", fontSize = 10.sp) },
-            colors = bottomBarItemColors()
-        )
-        NavigationBarItem(
-            selected = currentScreen == Screen.STATS,
-            onClick = onOpenStats,
-            icon = { Icon(Icons.Default.BarChart, contentDescription = "Collection statistics") },
-            label = { Text("Stats", fontSize = 10.sp) },
-            colors = bottomBarItemColors()
-        )
-        NavigationBarItem(
-            selected = false,
-            onClick = onAddNewMovie,
-            icon = { Icon(Icons.Default.Add, contentDescription = "Add movie") },
-            label = { Text("Add", fontSize = 10.sp) },
-            colors = bottomBarItemColors()
-        )
-        NavigationBarItem(
-            selected = false,
-            onClick = onOpenAccount,
-            icon = {
-                if (currentUser != null) {
-                    Icon(
-                        if (isSyncing) Icons.Default.CloudSync else Icons.Default.CloudDone,
-                        contentDescription = "Cloud backup and account"
-                    )
-                } else {
-                    Icon(Icons.Default.CloudSync, contentDescription = "Cloud backup and account")
-                }
-            },
-            label = { Text(if (currentUser != null) "Cloud" else "Sign in", fontSize = 10.sp) },
-            colors = bottomBarItemColors()
-        )
-    }
-}
-
-@Composable
-private fun bottomBarItemColors() = NavigationBarItemDefaults.colors(
-    selectedIconColor = CineDarkBg,
-    selectedTextColor = CineGold,
-    indicatorColor = CineGold,
-    unselectedIconColor = CineTextSecondary,
-    unselectedTextColor = CineTextSecondary
-)
