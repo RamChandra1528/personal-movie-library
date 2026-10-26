@@ -314,7 +314,7 @@ fun CineVaultBottomBar(
 private fun bottomBarItemColors() = NavigationBarItemDefaults.colors(
     selectedIconColor = CineDarkBg,
     selectedTextColor = CineGold,
-    selectedIndicatorColor = CineGold,
+    indicatorColor = CineGold,
     unselectedIconColor = CineTextSecondary,
     unselectedTextColor = CineTextSecondary
 )
