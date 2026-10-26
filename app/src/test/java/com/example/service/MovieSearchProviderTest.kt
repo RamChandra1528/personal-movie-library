@@ -51,6 +51,30 @@ class MovieSearchProviderTest {
     }
 
     @Test
+    fun `fuzzy regional browse queries return useful collections`() = runTest {
+        val provider = CollectionSearchProvider()
+
+        assertTrue(provider.featuredCollectionFor("bolly word movies").any { it.title == "3 Idiots" })
+        assertTrue(provider.featuredCollectionFor("south indain cinema").any { it.title == "RRR" })
+        assertTrue(provider.featuredCollectionFor("world wide movies").any { it.title == "Parasite" })
+    }
+
+    @Test
+    fun `offline catalogue resolves partial title spelling`() = runTest {
+        val results = CollectionSearchProvider().search("interstel")
+
+        assertTrue(results.any { it.title == "Interstellar" })
+    }
+
+    @Test
+    fun `offline catalogue provides year fallback`() {
+        val results = CollectionSearchProvider().searchByYear(2022)
+
+        assertTrue(results.any { it.title == "RRR" })
+        assertTrue(results.all { it.matchReason == "Released in 2022" })
+    }
+
+    @Test
     fun `global collection browse returns immediately without provider network calls`() = runTest {
         val response = MovieSearchService().searchGlobalEntertainment("Marvel movies")
 

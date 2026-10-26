@@ -135,7 +135,9 @@ class MovieSearchService(
                     val wikiResults = wikiYearTask.await()
                     val animeResults = animeYearTask.await()
 
-                    for (m in wikiResults + animeResults) {
+                    // Public APIs may be rate-limited or unavailable. Merge curated titles for
+                    // the requested year so a valid year never becomes an empty/error result.
+                    for (m in wikiResults + animeResults + collectionProvider.searchByYear(targetYear)) {
                         val key = "${m.title.lowercase()}_${m.releaseYear ?: 0}"
                         if (!seenKeys.contains(key)) {
                             seenKeys.add(key)
