@@ -1,0 +1,214 @@
+{
+  "entities": {
+    "Movie": {
+      "title": "Movie",
+      "description": "A saved movie or entertainment title in the user's CineVault personal collection.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the movie record."
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the movie or entertainment item."
+        },
+        "originalTitle": {
+          "type": "string",
+          "description": "Original or native title."
+        },
+        "releaseYear": {
+          "type": "integer",
+          "description": "Year of release."
+        },
+        "releaseDate": {
+          "type": "string",
+          "description": "Formatted release date."
+        },
+        "posterUrl": {
+          "type": "string",
+          "description": "Public URL for the movie poster image."
+        },
+        "backdropUrl": {
+          "type": "string",
+          "description": "Public URL for backdrop banner."
+        },
+        "genres": {
+          "type": "string",
+          "description": "Comma-separated list of genres."
+        },
+        "synopsis": {
+          "type": "string",
+          "description": "Plot overview or synopsis."
+        },
+        "director": {
+          "type": "string",
+          "description": "Director name(s)."
+        },
+        "cast": {
+          "type": "string",
+          "description": "Key cast members."
+        },
+        "runtimeMinutes": {
+          "type": "integer",
+          "description": "Runtime in minutes."
+        },
+        "language": {
+          "type": "string",
+          "description": "Primary language."
+        },
+        "externalRating": {
+          "type": "string",
+          "description": "Rating score from external public database."
+        },
+        "sourceUrl": {
+          "type": "string",
+          "description": "URL to source page for metadata verification."
+        },
+        "sourceAttribution": {
+          "type": "string",
+          "description": "Source attribution label."
+        },
+        "personalRating": {
+          "type": "number",
+          "description": "User's personal rating (0.0 to 5.0)."
+        },
+        "watchStatus": {
+          "type": "string",
+          "description": "User's watch status: PLAN_TO_WATCH, WATCHING, COMPLETED, or DROPPED.",
+          "enum": ["PLAN_TO_WATCH", "WATCHING", "COMPLETED", "DROPPED"]
+        },
+        "watchedDate": {
+          "type": "string",
+          "description": "Date user watched the title."
+        },
+        "personalNotes": {
+          "type": "string",
+          "description": "User's personal review notes."
+        },
+        "isFavorite": {
+          "type": "boolean",
+          "description": "Whether marked as a personal favorite."
+        },
+        "addedTimestamp": {
+          "type": "integer",
+          "description": "Epoch timestamp in milliseconds when title was added."
+        },
+        "contentType": {
+          "type": "string",
+          "description": "Media type: MOVIE, TV_SERIES, ANIME, or DRAMA.",
+          "enum": ["MOVIE", "TV_SERIES", "ANIME", "DRAMA"]
+        },
+        "alternateTitles": {
+          "type": "string",
+          "description": "Comma-separated alternate titles."
+        },
+        "imdbId": {
+          "type": "string",
+          "description": "IMDb ID if available."
+        },
+        "similarTitles": {
+          "type": "string",
+          "description": "Comma-separated similar titles."
+        },
+        "userId": {
+          "type": "string",
+          "description": "UID of the owner user."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when movie was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when movie was last updated."
+        }
+      },
+      "required": ["id", "title", "userId", "createdAt", "updatedAt"]
+    },
+    "UserSettings": {
+      "title": "UserSettings",
+      "description": "User preferences and cloud backup settings.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "UID of the owning user."
+        },
+        "sortOrder": {
+          "type": "string",
+          "description": "Selected sort order preference."
+        },
+        "preferredType": {
+          "type": "string",
+          "description": "Preferred entertainment filter."
+        },
+        "backupEnabled": {
+          "type": "boolean",
+          "description": "Whether cloud synchronization is active."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last settings update."
+        }
+      },
+      "required": ["userId", "updatedAt"]
+    },
+    "SearchHistoryItem": {
+      "title": "SearchHistoryItem",
+      "description": "User search record synced to cloud.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique ID for the search query."
+        },
+        "query": {
+          "type": "string",
+          "description": "Search query text."
+        },
+        "contentType": {
+          "type": "string",
+          "description": "Content category filtered during search."
+        },
+        "timestamp": {
+          "type": "integer",
+          "description": "Local epoch millisecond timestamp."
+        },
+        "userId": {
+          "type": "string",
+          "description": "UID of the user who performed search."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when search record was saved."
+        }
+      },
+      "required": ["id", "query", "userId", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/movies/{movieId}": {
+      "schema": {
+        "$ref": "#/entities/Movie"
+      },
+      "description": "User's personal movie vault collection documents."
+    },
+    "/users/{userId}/settings/{settingId}": {
+      "schema": {
+        "$ref": "#/entities/UserSettings"
+      },
+      "description": "User settings and preferences document."
+    },
+    "/users/{userId}/search_history/{searchId}": {
+      "schema": {
+        "$ref": "#/entities/SearchHistoryItem"
+      },
+      "description": "User entertainment search history records."
+    }
+  }
+}

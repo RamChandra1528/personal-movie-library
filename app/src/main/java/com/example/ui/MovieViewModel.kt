@@ -3,14 +3,20 @@ package com.example.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import android.content.Context
 import com.example.data.AppDatabase
+import com.example.data.CloudSearchRecord
+import com.example.data.FirestoreSyncRepository
 import com.example.data.MovieEntity
 import com.example.data.MovieRepository
+import com.example.data.SyncStatus
 import com.example.data.WatchStatus
+import com.example.service.AuthManager
 import com.example.service.DiscoveredMovie
 import com.example.service.GlobalSearchResponse
 import com.example.service.MovieSearchService
 import com.example.service.SearchResult
+import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -52,11 +58,45 @@ data class CollectionStats(
 class MovieViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository: MovieRepository
+    private val syncRepository: FirestoreSyncRepository
+    private val authManager: AuthManager = AuthManager(application)
     private val searchService: MovieSearchService = MovieSearchService()
+
+    val currentUser: StateFlow<FirebaseUser?> = authManager.currentUser
+    val syncStatus: StateFlow<SyncStatus>
+    val cloudSearchHistory: StateFlow<List<CloudSearchRecord>>
+
+    private val _showAccountDialog = MutableStateFlow(false)
+    val showAccountDialog: StateFlow<Boolean> = _showAccountDialog.asStateFlow()
+
+    private val _authError = MutableStateFlow<String?>(null)
+    val authError: StateFlow<String?> = _authError.asStateFlow()
+
+    private val _isSigningIn = MutableStateFlow(false)
+    val isSigningIn: StateFlow<Boolean> = _isSigningIn.asStateFlow()
 
     init {
         val db = AppDatabase.getInstance(application)
         repository = MovieRepository(db.movieDao())
+        syncRepository = FirestoreSyncRepository(application, db.movieDao())
+        syncStatus = syncRepository.syncStatus
+        cloudSearchHistory = syncRepository.cloudSearchHistory
+
+        // Listen for authentication changes to start/stop cloud synchronization
+        viewModelScope.launch {
+            authManager.currentUser.collect { user ->
+                if (user != null) {
+                    syncRepository.startSync(user.uid)
+                    // If local movies exist, back them up to user's cloud vault
+                    val localMovies = rawMovies.value
+                    if (localMovies.isNotEmpty()) {
+                        syncRepository.backupAllLocalMovies(user.uid, localMovies)
+                    }
+                } else {
+                    syncRepository.stopSync()
+                }
+            }
+        }
     }
 
     val rawMovies: StateFlow<List<MovieEntity>> = repository.allMovies
@@ -326,6 +366,49 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun openAccountDialog() {
+        _authError.value = null
+        _showAccountDialog.value = true
+    }
+
+    fun closeAccountDialog() {
+        _showAccountDialog.value = false
+        _authError.value = null
+    }
+
+    fun signInWithGoogle(activityContext: Context) {
+        viewModelScope.launch {
+            _isSigningIn.value = true
+            _authError.value = null
+            val result = authManager.signInWithGoogle(activityContext)
+            result.onSuccess { user ->
+                _quickAddNotification.value = "Signed in as ${user.displayName ?: user.email}"
+                _isSigningIn.value = false
+                // Cloud sync begins automatically via authState listener in init
+            }.onFailure { error ->
+                _authError.value = error.localizedMessage ?: "Google Sign-In failed"
+                _isSigningIn.value = false
+            }
+        }
+    }
+
+    fun signOut() {
+        viewModelScope.launch {
+            authManager.signOut()
+            _quickAddNotification.value = "Signed out of CineVault"
+        }
+    }
+
+    fun forceSyncAll() {
+        viewModelScope.launch {
+            val user = currentUser.value
+            if (user != null) {
+                syncRepository.backupAllLocalMovies(user.uid, rawMovies.value)
+                _quickAddNotification.value = "Synchronized ${rawMovies.value.size} movies to cloud"
+            }
+        }
+    }
+
     // REAL-TIME GLOBAL ENTERTAINMENT SEARCH OPERATIONS
     fun onGlobalQueryChanged(query: String) {
         _globalSearchQuery.value = query
@@ -351,6 +434,12 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
         _globalSearchPage.value = page
         viewModelScope.launch {
             _isGlobalSearching.value = true
+
+            // Record search query in user cloud history if authenticated
+            currentUser.value?.let { user ->
+                syncRepository.recordSearch(user.uid, clean, _globalEntertainmentType.value ?: "ALL")
+            }
+
             val response = searchService.searchGlobalEntertainment(
                 query = clean,
                 filterType = _globalEntertainmentType.value,
@@ -366,6 +455,11 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
         _globalEntertainmentType.value = type
         if (_globalSearchQuery.value.isNotBlank()) {
             executeGlobalSearch(_globalSearchQuery.value, page = 1)
+        }
+        currentUser.value?.let { user ->
+            viewModelScope.launch {
+                syncRepository.saveUserSettings(user.uid, _sortOrder.value.name, type ?: "ALL")
+            }
         }
     }
 
@@ -397,6 +491,17 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val entity = discovered.toMovieEntity()
             val id = repository.insertMovie(entity)
+            val insertedMovie = entity.copy(id = id)
+
+            // Cloud sync
+            currentUser.value?.let { user ->
+                try {
+                    syncRepository.uploadMovie(user.uid, insertedMovie)
+                } catch (e: Exception) {
+                    // Handled inside syncRepository
+                }
+            }
+
             _quickAddNotification.value = "Added \"${discovered.title}\" to CineVault!"
             closeAddDialog()
             openMovieDetails(id)
@@ -407,11 +512,32 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             if (movie.id == 0L) {
                 val newId = repository.insertMovie(movie)
+                val insertedMovie = movie.copy(id = newId)
+
+                // Cloud sync
+                currentUser.value?.let { user ->
+                    try {
+                        syncRepository.uploadMovie(user.uid, insertedMovie)
+                    } catch (e: Exception) {
+                        // Handled inside syncRepository
+                    }
+                }
+
                 _quickAddNotification.value = "Added \"${movie.title}\" to CineVault!"
                 closeAddDialog()
                 openMovieDetails(newId)
             } else {
                 repository.updateMovie(movie)
+
+                // Cloud sync
+                currentUser.value?.let { user ->
+                    try {
+                        syncRepository.uploadMovie(user.uid, movie)
+                    } catch (e: Exception) {
+                        // Handled inside syncRepository
+                    }
+                }
+
                 _quickAddNotification.value = "Updated \"${movie.title}\"!"
                 closeEditDialog()
             }
@@ -421,40 +547,94 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
     fun updatePersonalRating(movieId: Long, rating: Float) {
         viewModelScope.launch {
             val movie = rawMovies.value.firstOrNull { it.id == movieId } ?: return@launch
-            repository.updateMovie(movie.copy(personalRating = rating))
+            val updated = movie.copy(personalRating = rating)
+            repository.updateMovie(updated)
+
+            currentUser.value?.let { user ->
+                try {
+                    syncRepository.uploadMovie(user.uid, updated)
+                } catch (e: Exception) {
+                    // Handled inside syncRepository
+                }
+            }
         }
     }
 
     fun updateWatchStatus(movieId: Long, status: String) {
         viewModelScope.launch {
             val movie = rawMovies.value.firstOrNull { it.id == movieId } ?: return@launch
-            repository.updateMovie(movie.copy(watchStatus = status))
+            val updated = movie.copy(watchStatus = status)
+            repository.updateMovie(updated)
+
+            currentUser.value?.let { user ->
+                try {
+                    syncRepository.uploadMovie(user.uid, updated)
+                } catch (e: Exception) {
+                    // Handled inside syncRepository
+                }
+            }
         }
     }
 
     fun updatePersonalNotes(movieId: Long, notes: String) {
         viewModelScope.launch {
             val movie = rawMovies.value.firstOrNull { it.id == movieId } ?: return@launch
-            repository.updateMovie(movie.copy(personalNotes = notes))
+            val updated = movie.copy(personalNotes = notes)
+            repository.updateMovie(updated)
+
+            currentUser.value?.let { user ->
+                try {
+                    syncRepository.uploadMovie(user.uid, updated)
+                } catch (e: Exception) {
+                    // Handled inside syncRepository
+                }
+            }
         }
     }
 
     fun updateWatchedDate(movieId: Long, date: String?) {
         viewModelScope.launch {
             val movie = rawMovies.value.firstOrNull { it.id == movieId } ?: return@launch
-            repository.updateMovie(movie.copy(watchedDate = date))
+            val updated = movie.copy(watchedDate = date)
+            repository.updateMovie(updated)
+
+            currentUser.value?.let { user ->
+                try {
+                    syncRepository.uploadMovie(user.uid, updated)
+                } catch (e: Exception) {
+                    // Handled inside syncRepository
+                }
+            }
         }
     }
 
     fun toggleFavorite(movie: MovieEntity) {
         viewModelScope.launch {
-            repository.updateMovie(movie.copy(isFavorite = !movie.isFavorite))
+            val updated = movie.copy(isFavorite = !movie.isFavorite)
+            repository.updateMovie(updated)
+
+            currentUser.value?.let { user ->
+                try {
+                    syncRepository.uploadMovie(user.uid, updated)
+                } catch (e: Exception) {
+                    // Handled inside syncRepository
+                }
+            }
         }
     }
 
     fun deleteMovie(movie: MovieEntity) {
         viewModelScope.launch {
             repository.deleteMovie(movie)
+
+            currentUser.value?.let { user ->
+                try {
+                    syncRepository.deleteMovieFromCloud(user.uid, movie)
+                } catch (e: Exception) {
+                    // Handled inside syncRepository
+                }
+            }
+
             if (_selectedMovieId.value == movie.id) {
                 _selectedMovieId.value = null
                 _currentScreen.value = Screen.DASHBOARD

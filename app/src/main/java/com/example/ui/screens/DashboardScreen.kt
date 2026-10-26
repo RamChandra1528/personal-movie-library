@@ -107,6 +107,9 @@ fun DashboardScreen(
     onOpenAddDialog: () -> Unit,
     onOpenGlobalSearch: () -> Unit,
     onOpenStats: () -> Unit,
+    currentUser: com.google.firebase.auth.FirebaseUser? = null,
+    isSyncing: Boolean = false,
+    onOpenAccount: () -> Unit = {},
     onDismissNotification: () -> Unit
 ) {
     var quickInput by remember { mutableStateOf("") }
@@ -123,7 +126,10 @@ fun DashboardScreen(
             CineVaultTopBar(
                 onOpenGlobalSearch = onOpenGlobalSearch,
                 onOpenStats = onOpenStats,
-                onAddNewMovie = onOpenAddDialog
+                onAddNewMovie = onOpenAddDialog,
+                currentUser = currentUser,
+                isSyncing = isSyncing,
+                onOpenAccount = onOpenAccount
             )
 
             // Notification / Success Bar

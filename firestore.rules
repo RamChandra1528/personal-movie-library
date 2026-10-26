@@ -1,0 +1,79 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidTimestamp(val) {
+      return val is timestamp && val <= request.time;
+    }
+
+    function isValidMovie(data, userId) {
+      return data.id is string
+        && data.id.size() > 0
+        && data.id.size() <= 100
+        && data.title is string
+        && data.title.size() > 0
+        && data.title.size() <= 300
+        && data.userId == userId
+        && (!('releaseYear' in data) || data.releaseYear == null || (data.releaseYear is int && data.releaseYear >= 1880 && data.releaseYear <= 2200))
+        && (!('personalRating' in data) || data.personalRating == null || (data.personalRating is number && data.personalRating >= 0 && data.personalRating <= 5))
+        && (!('watchStatus' in data) || data.watchStatus in ['PLAN_TO_WATCH', 'WATCHING', 'COMPLETED', 'DROPPED'])
+        && (!('contentType' in data) || data.contentType in ['MOVIE', 'TV_SERIES', 'ANIME', 'DRAMA'])
+        && (!('isFavorite' in data) || data.isFavorite is bool)
+        && isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidUserSettings(data, userId) {
+      return data.userId == userId
+        && isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidSearchHistory(data, userId) {
+      return data.id is string
+        && data.id.size() > 0
+        && data.query is string
+        && data.query.size() > 0
+        && data.query.size() <= 200
+        && data.userId == userId
+        && isValidTimestamp(data.createdAt);
+    }
+
+    match /users/{userId} {
+      allow get, write: if isOwner(userId);
+
+      match /movies/{movieId} {
+        allow read, delete: if isOwner(userId);
+        allow create: if isOwner(userId)
+          && isValidMovie(request.resource.data, userId)
+          && isValidTimestamp(request.resource.data.createdAt);
+        allow update: if isOwner(userId)
+          && isValidMovie(request.resource.data, userId)
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.userId == resource.data.userId;
+      }
+
+      match /settings/{settingId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && isValidUserSettings(request.resource.data, userId);
+      }
+
+      match /search_history/{searchId} {
+        allow read, delete: if isOwner(userId);
+        allow create: if isOwner(userId)
+          && isValidSearchHistory(request.resource.data, userId);
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

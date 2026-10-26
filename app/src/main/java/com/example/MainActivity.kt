@@ -25,6 +25,8 @@ import com.example.ui.screens.EditMovieDialog
 import com.example.ui.screens.GlobalSearchScreen
 import com.example.ui.screens.MovieDetailsScreen
 import com.example.ui.screens.StatsScreen
+import androidx.activity.compose.BackHandler
+import com.example.ui.screens.AccountSyncDialog
 import com.example.ui.theme.CineVaultTheme
 
 class MainActivity : ComponentActivity() {
@@ -65,6 +67,14 @@ fun CineVaultApp(viewModel: MovieViewModel) {
     val showAddDialog by viewModel.showAddDialog.collectAsStateWithLifecycle()
     val showEditDialog by viewModel.showEditDialog.collectAsStateWithLifecycle()
 
+    // Auth & Cloud Sync State
+    val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
+    val syncStatus by viewModel.syncStatus.collectAsStateWithLifecycle()
+    val cloudSearchHistory by viewModel.cloudSearchHistory.collectAsStateWithLifecycle()
+    val showAccountDialog by viewModel.showAccountDialog.collectAsStateWithLifecycle()
+    val authError by viewModel.authError.collectAsStateWithLifecycle()
+    val isSigningIn by viewModel.isSigningIn.collectAsStateWithLifecycle()
+
     // Global Search State
     val globalSearchQuery by viewModel.globalSearchQuery.collectAsStateWithLifecycle()
     val globalSearchResponse by viewModel.globalSearchResponse.collectAsStateWithLifecycle()
@@ -74,6 +84,10 @@ fun CineVaultApp(viewModel: MovieViewModel) {
 
     val savedTitles = remember(rawMovies) {
         rawMovies.map { it.title.lowercase() }.toSet()
+    }
+
+    BackHandler(enabled = currentScreen != Screen.DASHBOARD) {
+        viewModel.navigateTo(Screen.DASHBOARD)
     }
 
     Scaffold(
@@ -109,6 +123,9 @@ fun CineVaultApp(viewModel: MovieViewModel) {
                         onOpenAddDialog = viewModel::openAddDialog,
                         onOpenGlobalSearch = { viewModel.navigateTo(Screen.GLOBAL_SEARCH) },
                         onOpenStats = { viewModel.navigateTo(Screen.STATS) },
+                        currentUser = currentUser,
+                        isSyncing = syncStatus.isSyncing,
+                        onOpenAccount = viewModel::openAccountDialog,
                         onDismissNotification = viewModel::clearNotification
                     )
                 }
@@ -180,6 +197,20 @@ fun CineVaultApp(viewModel: MovieViewModel) {
                     movie = selectedMovie!!,
                     onSave = viewModel::saveCustomMovie,
                     onDismiss = viewModel::closeEditDialog
+                )
+            }
+
+            if (showAccountDialog) {
+                AccountSyncDialog(
+                    currentUser = currentUser,
+                    syncStatus = syncStatus,
+                    cloudSearchHistory = cloudSearchHistory,
+                    isSigningIn = isSigningIn,
+                    authError = authError,
+                    onSignInWithGoogle = viewModel::signInWithGoogle,
+                    onSignOut = viewModel::signOut,
+                    onForceSync = viewModel::forceSyncAll,
+                    onDismiss = viewModel::closeAccountDialog
                 )
             }
         }
