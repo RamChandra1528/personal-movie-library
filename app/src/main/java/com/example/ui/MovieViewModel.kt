@@ -16,6 +16,7 @@ import com.example.service.DiscoveredMovie
 import com.example.service.GlobalSearchResponse
 import com.example.service.MovieSearchService
 import com.example.service.SearchResult
+import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -59,13 +60,22 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
 
     private val database = AppDatabase.getInstance(application)
     private val repository = MovieRepository(database.movieDao())
-    private val syncRepository = FirestoreSyncRepository(application, database.movieDao())
     private val authManager: AuthManager = AuthManager(application)
+    // Firebase configuration is optional for the local-first app. Do not instantiate
+    // Firestore when an APK was built without google-services.json.
+    private val syncRepository: FirestoreSyncRepository? = runCatching {
+        if (FirebaseApp.getApps(application).isEmpty()) null
+        else FirestoreSyncRepository(application, database.movieDao())
+    }.getOrNull()
+    private val unavailableSyncStatus = MutableStateFlow(
+        SyncStatus(errorMessage = "Cloud backup is unavailable until Firebase is configured.")
+    )
     private val searchService: MovieSearchService = MovieSearchService()
 
     val currentUser: StateFlow<FirebaseUser?> = authManager.currentUser
-    val syncStatus: StateFlow<SyncStatus> = syncRepository.syncStatus
-    val cloudSearchHistory: StateFlow<List<CloudSearchRecord>> = syncRepository.cloudSearchHistory
+    val syncStatus: StateFlow<SyncStatus> = syncRepository?.syncStatus ?: unavailableSyncStatus
+    val cloudSearchHistory: StateFlow<List<CloudSearchRecord>> =
+        syncRepository?.cloudSearchHistory ?: MutableStateFlow(emptyList())
 
     private val _showAccountDialog = MutableStateFlow(false)
     val showAccountDialog: StateFlow<Boolean> = _showAccountDialog.asStateFlow()
@@ -87,7 +97,8 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
         // after reinstalling the app.
         viewModelScope.launch {
             authManager.currentUser.collect { user ->
-                if (user != null) syncRepository.startSync(user.uid) else syncRepository.stopSync()
+                val sync = syncRepository ?: return@collect
+                if (user != null) sync.startSync(user.uid) else sync.stopSync()
             }
         }
     }
@@ -399,7 +410,7 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val user = currentUser.value
             if (user != null) {
-                syncRepository.backupAllLocalMovies(user.uid, rawMovies.value)
+                syncRepository?.backupAllLocalMovies(user.uid, rawMovies.value)
                 _quickAddNotification.value = "Synchronized ${rawMovies.value.size} movies to cloud"
             }
         }
@@ -438,7 +449,7 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
                 // Persist history off the critical path; a slow network must not delay results.
                 currentUser.value?.let { user ->
                     viewModelScope.launch {
-                        syncRepository.recordSearch(user.uid, clean, _globalEntertainmentType.value ?: "ALL")
+                        syncRepository?.recordSearch(user.uid, clean, _globalEntertainmentType.value ?: "ALL")
                     }
                 }
                 val response = searchService.searchGlobalEntertainment(
@@ -463,7 +474,7 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
         }
         currentUser.value?.let { user ->
             viewModelScope.launch {
-                syncRepository.saveUserSettings(user.uid, _sortOrder.value.name, type ?: "ALL")
+                syncRepository?.saveUserSettings(user.uid, _sortOrder.value.name, type ?: "ALL")
             }
         }
     }
@@ -539,7 +550,7 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
 
             currentUser.value?.let { user ->
                 try {
-                    syncRepository.uploadMovie(user.uid, updated)
+                    syncRepository?.uploadMovie(user.uid, updated)
                 } catch (e: Exception) {
                     // Handled inside syncRepository
                 }
@@ -555,7 +566,7 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
 
             currentUser.value?.let { user ->
                 try {
-                    syncRepository.uploadMovie(user.uid, updated)
+                    syncRepository?.uploadMovie(user.uid, updated)
                 } catch (e: Exception) {
                     // Handled inside syncRepository
                 }
@@ -571,7 +582,7 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
 
             currentUser.value?.let { user ->
                 try {
-                    syncRepository.uploadMovie(user.uid, updated)
+                    syncRepository?.uploadMovie(user.uid, updated)
                 } catch (e: Exception) {
                     // Handled inside syncRepository
                 }
@@ -587,7 +598,7 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
 
             currentUser.value?.let { user ->
                 try {
-                    syncRepository.uploadMovie(user.uid, updated)
+                    syncRepository?.uploadMovie(user.uid, updated)
                 } catch (e: Exception) {
                     // Handled inside syncRepository
                 }
@@ -602,7 +613,7 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
 
             currentUser.value?.let { user ->
                 try {
-                    syncRepository.uploadMovie(user.uid, updated)
+                    syncRepository?.uploadMovie(user.uid, updated)
                 } catch (e: Exception) {
                     // Handled inside syncRepository
                 }
@@ -616,7 +627,7 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
 
             currentUser.value?.let { user ->
                 try {
-                    syncRepository.deleteMovieFromCloud(user.uid, movie)
+                    syncRepository?.deleteMovieFromCloud(user.uid, movie)
                 } catch (e: Exception) {
                     // Handled inside syncRepository
                 }
@@ -633,7 +644,7 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun uploadMovieForSignedInUser(movie: MovieEntity) {
         currentUser.value?.let { user ->
             try {
-                syncRepository.uploadMovie(user.uid, movie)
+                syncRepository?.uploadMovie(user.uid, movie)
             } catch (_: Exception) {
                 // FirestoreSyncRepository exposes the failure through SyncStatus and Firestore's
                 // local persistence keeps a queued write when the device is temporarily offline.
