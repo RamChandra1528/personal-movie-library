@@ -391,7 +391,6 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
             result.onSuccess { user ->
                 _quickAddNotification.value = "Signed in as ${user.displayName ?: user.email}"
                 _isSigningIn.value = false
-                // Cloud sync begins automatically via authState listener in init
             }.onFailure { error ->
                 _authError.value = error.localizedMessage ?: "Google Sign-In failed"
                 _isSigningIn.value = false
@@ -399,10 +398,55 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun signInWithEmail(email: String, pass: String) {
+        viewModelScope.launch {
+            _isSigningIn.value = true
+            _authError.value = null
+            val result = authManager.signInWithEmail(email, pass)
+            result.onSuccess { user ->
+                _quickAddNotification.value = "Signed in as ${user.email}"
+                _isSigningIn.value = false
+                _showAccountDialog.value = false
+            }.onFailure { error ->
+                _authError.value = error.localizedMessage ?: "Email sign-in failed. Check credentials."
+                _isSigningIn.value = false
+            }
+        }
+    }
+
+    fun registerWithEmail(email: String, pass: String) {
+        viewModelScope.launch {
+            _isSigningIn.value = true
+            _authError.value = null
+            val result = authManager.registerWithEmail(email, pass)
+            result.onSuccess { user ->
+                _quickAddNotification.value = "Account created for ${user.email}"
+                _isSigningIn.value = false
+                _showAccountDialog.value = false
+            }.onFailure { error ->
+                _authError.value = error.localizedMessage ?: "Registration failed."
+                _isSigningIn.value = false
+            }
+        }
+    }
+
+    fun sendPasswordReset(email: String) {
+        viewModelScope.launch {
+            _authError.value = null
+            val result = authManager.sendPasswordReset(email)
+            result.onSuccess {
+                _quickAddNotification.value = "Password reset instructions sent to $email"
+            }.onFailure { error ->
+                _authError.value = error.localizedMessage ?: "Password reset failed."
+            }
+        }
+    }
+
     fun signOut() {
         viewModelScope.launch {
             authManager.signOut()
-            _quickAddNotification.value = "Signed out of CineVault"
+            database.movieDao().deleteAllMovies()
+            _quickAddNotification.value = "Signed out of Personal Movie Library"
         }
     }
 

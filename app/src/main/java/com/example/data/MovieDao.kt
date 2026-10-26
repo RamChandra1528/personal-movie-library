@@ -42,4 +42,7 @@ interface MovieDao {
 
     @Query("SELECT * FROM movies ORDER BY addedTimestamp DESC")
     suspend fun getAllMoviesOnce(): List<MovieEntity>
+
+    @Query("DELETE FROM movies")
+    suspend fun deleteAllMovies()
 }

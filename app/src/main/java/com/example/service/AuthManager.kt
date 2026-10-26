@@ -106,6 +106,67 @@ class AuthManager(private val context: Context) {
         }
     }
 
+    suspend fun signInWithEmail(email: String, password: String): Result<FirebaseUser> {
+        val cleanEmail = email.trim()
+        if (cleanEmail.isEmpty() || !cleanEmail.contains("@")) {
+            return Result.failure(IllegalArgumentException("Please enter a valid email address."))
+        }
+        if (password.isEmpty()) {
+            return Result.failure(IllegalArgumentException("Please enter your password."))
+        }
+        val firebaseAuth = auth ?: return Result.failure(
+            IllegalStateException("Cloud authentication is unavailable because Firebase is not configured.")
+        )
+        return try {
+            val authResult = firebaseAuth.signInWithEmailAndPassword(cleanEmail, password).await()
+            val user = authResult.user ?: throw IllegalStateException("Firebase user was null after sign-in")
+            _currentUser.value = user
+            Result.success(user)
+        } catch (e: Exception) {
+            Log.e(TAG, "Email sign in failed", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun registerWithEmail(email: String, password: String): Result<FirebaseUser> {
+        val cleanEmail = email.trim()
+        if (cleanEmail.isEmpty() || !cleanEmail.contains("@")) {
+            return Result.failure(IllegalArgumentException("Please enter a valid email address."))
+        }
+        if (password.length < 6) {
+            return Result.failure(IllegalArgumentException("Password must be at least 6 characters."))
+        }
+        val firebaseAuth = auth ?: return Result.failure(
+            IllegalStateException("Cloud authentication is unavailable because Firebase is not configured.")
+        )
+        return try {
+            val authResult = firebaseAuth.createUserWithEmailAndPassword(cleanEmail, password).await()
+            val user = authResult.user ?: throw IllegalStateException("Firebase user was null after registration")
+            _currentUser.value = user
+            Result.success(user)
+        } catch (e: Exception) {
+            Log.e(TAG, "Email registration failed", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun sendPasswordReset(email: String): Result<Unit> {
+        val cleanEmail = email.trim()
+        if (cleanEmail.isEmpty() || !cleanEmail.contains("@")) {
+            return Result.failure(IllegalArgumentException("Please enter a valid email address."))
+        }
+        val firebaseAuth = auth ?: return Result.failure(
+            IllegalStateException("Cloud authentication is unavailable because Firebase is not configured.")
+        )
+        return try {
+            firebaseAuth.sendPasswordResetEmail(cleanEmail).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "Password reset failed", e)
+            Result.failure(e)
+        }
+    }
+
     suspend fun signOut(): Result<Unit> {
         return try {
             auth?.signOut()

@@ -66,6 +66,7 @@ class FirestoreSyncRepository(
      */
     fun startSync(userId: String) {
         if (activeUserId == userId && moviesSnapshotListener != null) return
+        val previousUserId = activeUserId
         stopSync()
         activeUserId = userId
 
@@ -119,11 +120,21 @@ class FirestoreSyncRepository(
         // Also fetch search history
         loadSearchHistory(userId)
 
-        // Do a deterministic first merge before backing up.  Previously the ViewModel read a
+        // Do a deterministic first merge before backing up. Previously the ViewModel read a
         // lazily started UI flow here; on a cold launch it was often still empty, so backup and
-        // restore could be skipped or race each other.  This job owns the initial sequence and
+        // restore could be skipped or race each other. This job owns the initial sequence and
         // uses Room directly, which also makes an uninstall/reinstall restore dependable.
-        repositoryScope.launch { restoreThenBackUpMissingMovies(userId, moviesCol) }
+        repositoryScope.launch {
+            if (previousUserId != null && previousUserId != userId) {
+                // Wipe previous user's cached movies to guarantee clean user separation
+                try {
+                    movieDao.deleteAllMovies()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error clearing local cache for user switch", e)
+                }
+            }
+            restoreThenBackUpMissingMovies(userId, moviesCol)
+        }
     }
 
     fun stopSync() {
