@@ -24,7 +24,35 @@ object WatchStatus {
 }
 
 /**
- * Persistent Movie entity stored in CineVault's Room database.
+ * Entertainment types supported across global catalog.
+ */
+object EntertainmentType {
+    const val MOVIE = "MOVIE"
+    const val TV_SERIES = "TV_SERIES"
+    const val ANIME = "ANIME"
+    const val DRAMA = "DRAMA"
+
+    val allTypes = listOf(MOVIE, TV_SERIES, ANIME, DRAMA)
+
+    fun getDisplayName(type: String): String = when (type) {
+        MOVIE -> "Movie"
+        TV_SERIES -> "TV Series"
+        ANIME -> "Anime"
+        DRAMA -> "Drama"
+        else -> "Entertainment"
+    }
+
+    fun getIcon(type: String): String = when (type) {
+        MOVIE -> "🎬"
+        TV_SERIES -> "📺"
+        ANIME -> "⚡"
+        DRAMA -> "🎭"
+        else -> "🍿"
+    }
+}
+
+/**
+ * Persistent Entertainment entity stored in CineVault's Room database.
  */
 @Entity(tableName = "movies")
 data class MovieEntity(
@@ -50,13 +78,23 @@ data class MovieEntity(
     val watchedDate: String? = null,
     val personalNotes: String? = null,
     val isFavorite: Boolean = false,
-    val addedTimestamp: Long = System.currentTimeMillis()
+    val addedTimestamp: Long = System.currentTimeMillis(),
+    val contentType: String = EntertainmentType.MOVIE,
+    val alternateTitles: String = "",
+    val imdbId: String? = null,
+    val similarTitles: String = ""
 ) {
     val genresList: List<String>
         get() = if (genres.isBlank()) emptyList() else genres.split(",").map { it.trim() }.filter { it.isNotEmpty() }
 
     val castList: List<String>
         get() = if (cast.isBlank()) emptyList() else cast.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+
+    val alternateTitlesList: List<String>
+        get() = if (alternateTitles.isBlank()) emptyList() else alternateTitles.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+
+    val similarTitlesList: List<String>
+        get() = if (similarTitles.isBlank()) emptyList() else similarTitles.split(",").map { it.trim() }.filter { it.isNotEmpty() }
 
     val formattedRuntime: String
         get() = runtimeMinutes?.let { mins ->

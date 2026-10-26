@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.MovieViewModel
@@ -21,6 +22,7 @@ import com.example.ui.Screen
 import com.example.ui.screens.AddMovieDialog
 import com.example.ui.screens.DashboardScreen
 import com.example.ui.screens.EditMovieDialog
+import com.example.ui.screens.GlobalSearchScreen
 import com.example.ui.screens.MovieDetailsScreen
 import com.example.ui.screens.StatsScreen
 import com.example.ui.theme.CineVaultTheme
@@ -63,7 +65,16 @@ fun CineVaultApp(viewModel: MovieViewModel) {
     val showAddDialog by viewModel.showAddDialog.collectAsStateWithLifecycle()
     val showEditDialog by viewModel.showEditDialog.collectAsStateWithLifecycle()
 
-    val safePadding = WindowInsets.safeDrawing.asPaddingValues()
+    // Global Search State
+    val globalSearchQuery by viewModel.globalSearchQuery.collectAsStateWithLifecycle()
+    val globalSearchResponse by viewModel.globalSearchResponse.collectAsStateWithLifecycle()
+    val isGlobalSearching by viewModel.isGlobalSearching.collectAsStateWithLifecycle()
+    val globalEntertainmentType by viewModel.globalEntertainmentType.collectAsStateWithLifecycle()
+    val globalSearchPage by viewModel.globalSearchPage.collectAsStateWithLifecycle()
+
+    val savedTitles = remember(rawMovies) {
+        rawMovies.map { it.title.lowercase() }.toSet()
+    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -96,8 +107,29 @@ fun CineVaultApp(viewModel: MovieViewModel) {
                         onMovieClick = viewModel::openMovieDetails,
                         onToggleFavorite = viewModel::toggleFavorite,
                         onOpenAddDialog = viewModel::openAddDialog,
+                        onOpenGlobalSearch = { viewModel.navigateTo(Screen.GLOBAL_SEARCH) },
                         onOpenStats = { viewModel.navigateTo(Screen.STATS) },
                         onDismissNotification = viewModel::clearNotification
+                    )
+                }
+
+                Screen.GLOBAL_SEARCH -> {
+                    GlobalSearchScreen(
+                        searchQuery = globalSearchQuery,
+                        searchResponse = globalSearchResponse,
+                        isSearching = isGlobalSearching,
+                        selectedType = globalEntertainmentType,
+                        currentPage = globalSearchPage,
+                        savedTitles = savedTitles,
+                        onQueryChanged = viewModel::onGlobalQueryChanged,
+                        onSearchSubmitted = { query -> viewModel.executeGlobalSearch(query, page = 1) },
+                        onTypeSelected = viewModel::setGlobalEntertainmentType,
+                        onYearSelected = viewModel::searchByYear,
+                        onApplyDidYouMean = viewModel::applyDidYouMeanSuggestion,
+                        onNextPage = viewModel::loadNextPage,
+                        onPreviousPage = viewModel::loadPreviousPage,
+                        onSaveToVault = viewModel::saveDiscoveredMovie,
+                        onBack = { viewModel.navigateTo(Screen.DASHBOARD) }
                     )
                 }
 

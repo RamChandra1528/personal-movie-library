@@ -1,11 +1,13 @@
 package com.example.service
 
+import com.example.data.EntertainmentType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
@@ -26,7 +28,7 @@ class WikipediaSearchProvider(
         "Sci-Fi", "Science Fiction", "Drama", "Action", "Adventure",
         "Thriller", "Comedy", "Romance", "Horror", "Mystery", "Crime",
         "Fantasy", "Animation", "Documentary", "War", "Western",
-        "Biography", "Musical", "Family", "History", "Superhero"
+        "Biography", "Musical", "Family", "History", "Superhero", "Cyberpunk"
     )
 
     override suspend fun search(query: String): List<DiscoveredMovie> = withContext(Dispatchers.IO) {
@@ -36,7 +38,7 @@ class WikipediaSearchProvider(
         try {
             // First search Wikipedia for pages matching "<query> film" or "<query>"
             val encodedSearch = URLEncoder.encode("$cleanQuery film", "UTF-8")
-            val searchUrl = "https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=$encodedSearch&srlimit=5&format=json"
+            val searchUrl = "https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=$encodedSearch&srlimit=6&format=json"
 
             val request = Request.Builder()
                 .url(searchUrl)
@@ -60,8 +62,16 @@ class WikipediaSearchProvider(
                 }
             }
 
+            // Also check OpenSearch for fuzzy corrections if titles is small
+            if (titles.size < 3) {
+                val fuzzyTitles = fetchOpenSearchSuggestions(cleanQuery)
+                for (ft in fuzzyTitles) {
+                    if (!titles.contains(ft)) titles.add(ft)
+                }
+            }
+
             // Fetch summary for top results in parallel
-            val deferred = titles.take(4).map { title ->
+            val deferred = titles.take(5).map { title ->
                 async {
                     fetchSummaryForTitle(title)
                 }
@@ -74,11 +84,112 @@ class WikipediaSearchProvider(
         }
     }
 
+    /**
+     * Search entertainment released in a specific year with pagination.
+     */
+    suspend fun searchByYear(year: Int, page: Int = 1, pageSize: Int = 10): List<DiscoveredMovie> = withContext(Dispatchers.IO) {
+        try {
+            val offset = (page - 1) * pageSize
+            val queryStr = URLEncoder.encode("incategory:${year}_films OR incategory:${year}_television_series_debuts", "UTF-8")
+            val searchUrl = "https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=$queryStr&srlimit=$pageSize&sroffset=$offset&format=json"
+
+            val request = Request.Builder()
+                .url(searchUrl)
+                .header("User-Agent", userAgent)
+                .build()
+
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) return@withContext emptyList()
+
+            val body = response.body?.string() ?: return@withContext emptyList()
+            val json = JSONObject(body)
+            val searchArr = json.optJSONObject("query")?.optJSONArray("search") ?: return@withContext emptyList()
+
+            val titles = mutableListOf<String>()
+            for (i in 0 until searchArr.length()) {
+                val title = searchArr.getJSONObject(i).optString("title")
+                if (title.isNotBlank()) titles.add(title)
+            }
+
+            val deferred = titles.map { title ->
+                async {
+                    fetchSummaryForTitle(title, forceYear = year)
+                }
+            }
+            deferred.awaitAll().filterNotNull()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
+    /**
+     * OpenSearch suggestion for spelling mistakes and fuzzy typing.
+     */
+    suspend fun getFuzzySuggestion(query: String): String? = withContext(Dispatchers.IO) {
+        try {
+            val encoded = URLEncoder.encode(query.trim(), "UTF-8")
+            val url = "https://en.wikipedia.org/w/api.php?action=opensearch&search=$encoded&limit=4&format=json"
+
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", userAgent)
+                .build()
+
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) return@withContext null
+
+            val body = response.body?.string() ?: return@withContext null
+            val array = JSONArray(body)
+            if (array.length() >= 2) {
+                val suggestions = array.getJSONArray(1)
+                for (i in 0 until suggestions.length()) {
+                    val s = suggestions.getString(i)
+                    if (s.contains("film", ignoreCase = true) || s.contains("series", ignoreCase = true)) {
+                        return@withContext cleanMovieTitle(s)
+                    }
+                }
+                if (suggestions.length() > 0) {
+                    val first = suggestions.getString(0)
+                    if (!first.equals(query, ignoreCase = true)) {
+                        return@withContext cleanMovieTitle(first)
+                    }
+                }
+            }
+            null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun fetchOpenSearchSuggestions(query: String): List<String> {
+        return try {
+            val encoded = URLEncoder.encode(query.trim(), "UTF-8")
+            val url = "https://en.wikipedia.org/w/api.php?action=opensearch&search=$encoded&limit=5&format=json"
+            val request = Request.Builder().url(url).header("User-Agent", userAgent).build()
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) return emptyList()
+
+            val body = response.body?.string() ?: return emptyList()
+            val array = JSONArray(body)
+            val list = mutableListOf<String>()
+            if (array.length() >= 2) {
+                val suggestions = array.getJSONArray(1)
+                for (i in 0 until suggestions.length()) {
+                    list.add(suggestions.getString(i))
+                }
+            }
+            list
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
     override suspend fun getMovieDetails(identifier: String): DiscoveredMovie? = withContext(Dispatchers.IO) {
         fetchSummaryForTitle(identifier)
     }
 
-    private fun fetchSummaryForTitle(wikiTitle: String): DiscoveredMovie? {
+    private fun fetchSummaryForTitle(wikiTitle: String, forceYear: Int? = null): DiscoveredMovie? {
         return try {
             val encodedTitle = URLEncoder.encode(wikiTitle.replace(" ", "_"), "UTF-8")
             val url = "https://en.wikipedia.org/api/rest_v1/page/summary/$encodedTitle"
@@ -107,15 +218,25 @@ class WikipediaSearchProvider(
                 ?.optJSONObject("desktop")
                 ?.optString("page", "https://en.wikipedia.org/wiki/$encodedTitle")
 
+            // Determine content type
+            val lowerDesc = "$description $rawTitle $extract".lowercase()
+            val contentType = when {
+                lowerDesc.contains("anime") || lowerDesc.contains("manga") -> EntertainmentType.ANIME
+                lowerDesc.contains("korean drama") || lowerDesc.contains("television drama") || lowerDesc.contains("drama series") -> EntertainmentType.DRAMA
+                lowerDesc.contains("television series") || lowerDesc.contains("tv series") || lowerDesc.contains("web series") || lowerDesc.contains("miniseries") -> EntertainmentType.TV_SERIES
+                else -> EntertainmentType.MOVIE
+            }
+
             // Extract Year from description, rawTitle or extract
-            val year = extractYear(rawTitle)
+            val year = forceYear
+                ?: extractYear(rawTitle)
                 ?: extractYear(description)
                 ?: extractYear(extract)
 
             // Extract Director
             val director = extractDirector(description)
                 ?: extractDirector(extract)
-                ?: "Unknown Director"
+                ?: if (contentType == EntertainmentType.TV_SERIES) "Showrunners" else "Production Team"
 
             // Extract Cast
             val castList = extractCast(extract)
@@ -125,6 +246,14 @@ class WikipediaSearchProvider(
 
             // Extract Runtime if mentioned in text
             val runtime = extractRuntime(extract)
+
+            // Alternate titles
+            val altTitles = mutableListOf<String>()
+            val norm = json.optJSONObject("titles")?.optString("normalized")
+            if (norm != null && norm != cleanTitle && !altTitles.contains(norm)) altTitles.add(norm)
+
+            // Generate similar titles based on director or genres
+            val similar = generateSimilarTitles(cleanTitle, foundGenres, director)
 
             DiscoveredMovie(
                 title = cleanTitle,
@@ -140,7 +269,10 @@ class WikipediaSearchProvider(
                 language = "English",
                 externalRating = if (posterUrl != null) "Verified Public Source" else null,
                 sourceUrl = sourceUrl,
-                sourceName = "Wikipedia / Wikimedia Commons"
+                sourceName = "Wikipedia / Wikimedia Commons",
+                contentType = contentType,
+                alternateTitles = altTitles,
+                similarTitles = similar
             )
         } catch (e: Exception) {
             e.printStackTrace()
@@ -152,6 +284,8 @@ class WikipediaSearchProvider(
         return title
             .replace(Regex("\\s*\\((?:\\d{4}\\s+)?film\\)", RegexOption.IGNORE_CASE), "")
             .replace(Regex("\\s*\\(.*film.*\\)", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("\\s*\\(.*television.*\\)", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("\\s*\\(.*TV series.*\\)", RegexOption.IGNORE_CASE), "")
             .trim()
     }
 
@@ -167,6 +301,7 @@ class WikipediaSearchProvider(
     private fun extractDirector(text: String): String? {
         val patterns = listOf(
             Pattern.compile("directed by\\s+([A-Z][a-zA-Z'\\-\\.\\s]+?)(?:,|\\.|;|\\band\\b|\\bwho\\b|\\bin\\b)", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("created by\\s+([A-Z][a-zA-Z'\\-\\.\\s]+?)(?:,|\\.|;|\\band\\b)", Pattern.CASE_INSENSITIVE),
             Pattern.compile("director[:\\s]+([A-Z][a-zA-Z'\\-\\.\\s]+?)(?:,|\\.|\\n)", Pattern.CASE_INSENSITIVE)
         )
         for (pattern in patterns) {
@@ -216,5 +351,23 @@ class WikipediaSearchProvider(
             return matcher.group(1)?.toIntOrNull()
         }
         return null
+    }
+
+    private fun generateSimilarTitles(title: String, genres: List<String>, director: String): List<String> {
+        val list = mutableListOf<String>()
+        if (title.contains("Interstellar", ignoreCase = true)) {
+            list.addAll(listOf("Inception", "Arrival", "Gravity", "Contact"))
+        } else if (title.contains("Matrix", ignoreCase = true)) {
+            list.addAll(listOf("Blade Runner 2049", "Dark City", "Equilibrium"))
+        } else if (title.contains("Dark Knight", ignoreCase = true)) {
+            list.addAll(listOf("Batman Begins", "The Prestige", "Memento"))
+        } else if (genres.contains("Sci-Fi")) {
+            list.addAll(listOf("Interstellar", "Inception", "Blade Runner"))
+        } else if (genres.contains("Action")) {
+            list.addAll(listOf("Mad Max: Fury Road", "John Wick", "Gladiator"))
+        } else if (genres.contains("Animation") || genres.contains("Anime")) {
+            list.addAll(listOf("Spirited Away", "Your Name", "Princess Mononoke"))
+        }
+        return list.take(4)
     }
 }

@@ -265,6 +265,20 @@ fun MovieDetailsScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             StatusBadge(status = movie.watchStatus)
 
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = CineGold.copy(alpha = 0.2f)
+                            ) {
+                                Text(
+                                    text = "${com.example.data.EntertainmentType.getIcon(movie.contentType)} ${com.example.data.EntertainmentType.getDisplayName(movie.contentType)}",
+                                    color = CineGold,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+
                             movie.releaseYear?.let { year ->
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Surface(
@@ -273,7 +287,7 @@ fun MovieDetailsScreen(
                                 ) {
                                     Text(
                                         text = "$year",
-                                        color = CineGold,
+                                        color = CineCyan,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -707,7 +721,56 @@ fun MovieDetailsScreen(
                         Spacer(modifier = Modifier.height(18.dp))
                     }
 
-                    // Public Source & Attribution Card
+                    // Similar Titles Card
+                    if (movie.similarTitlesList.isNotEmpty()) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = CardDefaults.cardColors(containerColor = CineSurface),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, CineCardBorder)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                    text = "Similar Titles & Recommendations",
+                                    color = CineTextPrimary,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+                                FlowRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    movie.similarTitlesList.forEach { simTitle ->
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = CineSurfaceVariant,
+                                            modifier = Modifier.clickable {
+                                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=${java.net.URLEncoder.encode(simTitle, "UTF-8")}+movie"))
+                                                context.startActivity(intent)
+                                            }
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = "★ $simTitle",
+                                                    color = CineCyan,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(18.dp))
+                    }
+
+                    // Public Source & Attribution Card with Global Databases
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(14.dp),
@@ -716,7 +779,7 @@ fun MovieDetailsScreen(
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text(
-                                text = "Public Source & Attribution",
+                                text = "Public Source & Global Movie Databases",
                                 color = CineTextPrimary,
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold
@@ -727,6 +790,61 @@ fun MovieDetailsScreen(
                                 color = CineTextSecondary,
                                 fontSize = 12.sp
                             )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Quick Links to Google Search, IMDb, TMDB
+                            Text(
+                                text = "Verify on Global Entertainment Portals:",
+                                color = CineTextTertiary,
+                                fontSize = 11.sp
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = {
+                                        val q = java.net.URLEncoder.encode("${movie.title} ${movie.releaseYear ?: ""} movie", "UTF-8")
+                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=$q"))
+                                        context.startActivity(intent)
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = CineTextPrimary)
+                                ) {
+                                    Text("Google", fontSize = 11.sp)
+                                }
+
+                                OutlinedButton(
+                                    onClick = {
+                                        val url = if (!movie.imdbId.isNullOrBlank()) {
+                                            "https://www.imdb.com/title/${movie.imdbId}/"
+                                        } else {
+                                            val q = java.net.URLEncoder.encode(movie.title, "UTF-8")
+                                            "https://www.imdb.com/find?q=$q"
+                                        }
+                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                        context.startActivity(intent)
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = CineGold)
+                                ) {
+                                    Text("IMDb", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+
+                                OutlinedButton(
+                                    onClick = {
+                                        val q = java.net.URLEncoder.encode(movie.title, "UTF-8")
+                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.themoviedb.org/search?query=$q"))
+                                        context.startActivity(intent)
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = CineCyan)
+                                ) {
+                                    Text("TMDB", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
 
                             if (!movie.sourceUrl.isNullOrBlank()) {
                                 Spacer(modifier = Modifier.height(10.dp))
@@ -744,7 +862,7 @@ fun MovieDetailsScreen(
                                         modifier = Modifier.size(16.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Open Verified Public Page", fontSize = 12.sp)
+                                    Text("Open Verified Article / Registry Page", fontSize = 12.sp)
                                 }
                             }
                         }

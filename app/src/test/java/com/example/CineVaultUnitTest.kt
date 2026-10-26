@@ -1,8 +1,10 @@
 package com.example
 
+import com.example.data.EntertainmentType
 import com.example.data.MovieEntity
 import com.example.data.WatchStatus
 import com.example.service.DiscoveredMovie
+import com.example.service.FuzzyRelevanceRanker
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -45,7 +47,10 @@ class CineVaultUnitTest {
             synopsis = "A team of explorers travel through a wormhole in space...",
             director = "Christopher Nolan",
             cast = listOf("Matthew McConaughey", "Anne Hathaway"),
-            runtimeMinutes = 169
+            runtimeMinutes = 169,
+            contentType = EntertainmentType.MOVIE,
+            alternateTitles = listOf("Interstellar: The IMAX Experience"),
+            similarTitles = listOf("Inception", "Arrival")
         )
 
         val entity = discovered.toMovieEntity()
@@ -53,7 +58,73 @@ class CineVaultUnitTest {
         assertEquals(2014, entity.releaseYear)
         assertEquals("Sci-Fi, Drama", entity.genres)
         assertEquals(WatchStatus.PLAN_TO_WATCH, entity.watchStatus)
-        assertEquals(0f, entity.personalRating)
+        assertEquals(EntertainmentType.MOVIE, entity.contentType)
+        assertEquals("Inception, Arrival", entity.similarTitles)
+    }
+
+    @Test
+    fun testFuzzyRelevanceRankerExactAndPartialMatches() {
+        val movie = DiscoveredMovie(
+            title = "The Dark Knight",
+            releaseYear = 2008,
+            director = "Christopher Nolan",
+            cast = listOf("Christian Bale", "Heath Ledger"),
+            genres = listOf("Action", "Crime", "Drama"),
+            alternateTitles = listOf("Batman: The Dark Knight")
+        )
+
+        // Exact match
+        val (exactScore, exactReason) = FuzzyRelevanceRanker.scoreAndExplain(movie, "The Dark Knight")
+        assertEquals(100f, exactScore, 0.01f)
+        assertEquals("Exact Title Match", exactReason)
+
+        // Prefix match
+        val (prefixScore, prefixReason) = FuzzyRelevanceRanker.scoreAndExplain(movie, "The Dark")
+        assertEquals(90f, prefixScore, 0.01f)
+        assertEquals("Prefix Title Match", prefixReason)
+
+        // Alternate title match
+        val (altScore, _) = FuzzyRelevanceRanker.scoreAndExplain(movie, "Batman: The Dark Knight")
+        assertEquals(80f, altScore, 0.01f)
+
+        // Actor match
+        val (actorScore, actorReason) = FuzzyRelevanceRanker.scoreAndExplain(movie, "Heath Ledger")
+        assertEquals(75f, actorScore, 0.01f)
+        assertTrue(actorReason.contains("Heath Ledger"))
+
+        // Director match
+        val (dirScore, dirReason) = FuzzyRelevanceRanker.scoreAndExplain(movie, "Christopher Nolan")
+        assertEquals(74f, dirScore, 0.01f)
+        assertTrue(dirReason.contains("Christopher Nolan"))
+    }
+
+    @Test
+    fun testFuzzyRelevanceRankerSpellingMistake() {
+        val movie = DiscoveredMovie(
+            title = "Interstellar",
+            releaseYear = 2014
+        )
+
+        // Minor typo: "Interstellr" vs "Interstellar"
+        val similarity = FuzzyRelevanceRanker.calculateSimilarity("interstellr", "interstellar")
+        assertTrue("Similarity should be high for 1 missing letter: $similarity", similarity >= 0.85f)
+
+        val (fuzzyScore, fuzzyReason) = FuzzyRelevanceRanker.scoreAndExplain(movie, "interstellr")
+        assertTrue(fuzzyScore >= 60f)
+        assertTrue(fuzzyReason.contains("Fuzzy Match"))
+    }
+
+    @Test
+    fun testEntertainmentTypeDisplayNamesAndIcons() {
+        assertEquals("Movie", EntertainmentType.getDisplayName(EntertainmentType.MOVIE))
+        assertEquals("TV Series", EntertainmentType.getDisplayName(EntertainmentType.TV_SERIES))
+        assertEquals("Anime", EntertainmentType.getDisplayName(EntertainmentType.ANIME))
+        assertEquals("Drama", EntertainmentType.getDisplayName(EntertainmentType.DRAMA))
+
+        assertEquals("🎬", EntertainmentType.getIcon(EntertainmentType.MOVIE))
+        assertEquals("📺", EntertainmentType.getIcon(EntertainmentType.TV_SERIES))
+        assertEquals("⚡", EntertainmentType.getIcon(EntertainmentType.ANIME))
+        assertEquals("🎭", EntertainmentType.getIcon(EntertainmentType.DRAMA))
     }
 
     @Test

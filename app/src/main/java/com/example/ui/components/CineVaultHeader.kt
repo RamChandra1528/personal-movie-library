@@ -147,6 +147,7 @@ fun CineVaultLogo(
 
 @Composable
 fun CineVaultTopBar(
+    onOpenGlobalSearch: () -> Unit,
     onOpenStats: () -> Unit,
     onAddNewMovie: () -> Unit,
     modifier: Modifier = Modifier
@@ -189,8 +190,8 @@ fun CineVaultTopBar(
                         )
                     }
                     Text(
-                        text = "Personal Movie Archive",
-                        color = CineTextSecondary,
+                        text = "Global Entertainment Engine",
+                        color = CineGold,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium
                     )
@@ -198,6 +199,24 @@ fun CineVaultTopBar(
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = onOpenGlobalSearch,
+                    modifier = Modifier
+                        .testTag("global_search_top_button")
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(CineSurface)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "Global Entertainment Search",
+                        tint = CineGold,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
                 IconButton(
                     onClick = onOpenStats,
                     modifier = Modifier

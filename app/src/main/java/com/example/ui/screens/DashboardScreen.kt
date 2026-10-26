@@ -105,6 +105,7 @@ fun DashboardScreen(
     onMovieClick: (Long) -> Unit,
     onToggleFavorite: (MovieEntity) -> Unit,
     onOpenAddDialog: () -> Unit,
+    onOpenGlobalSearch: () -> Unit,
     onOpenStats: () -> Unit,
     onDismissNotification: () -> Unit
 ) {
@@ -120,6 +121,7 @@ fun DashboardScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             // CineVault Top Bar
             CineVaultTopBar(
+                onOpenGlobalSearch = onOpenGlobalSearch,
                 onOpenStats = onOpenStats,
                 onAddNewMovie = onOpenAddDialog
             )
@@ -188,7 +190,84 @@ fun DashboardScreen(
                 // Section 1: Hero Banner & Quick Add Input (Span full width)
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Column(modifier = Modifier.fillMaxWidth()) {
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // Global Entertainment Search Engine Launcher Card
+                        Card(
+                            modifier = Modifier
+                                .testTag("global_search_launcher_card")
+                                .fillMaxWidth()
+                                .clickable(onClick = onOpenGlobalSearch),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = CineSurfaceVariant),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, CineCyan.copy(alpha = 0.5f))
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = CineCyan.copy(alpha = 0.18f),
+                                        modifier = Modifier.size(38.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Default.Search,
+                                                contentDescription = null,
+                                                tint = CineCyan,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = "Global Entertainment Search",
+                                                color = CineTextPrimary,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.sp
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Surface(
+                                                shape = RoundedCornerShape(4.dp),
+                                                color = CineCyan
+                                            ) {
+                                                Text(
+                                                    text = "LIVE",
+                                                    color = CineDarkBg,
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                )
+                                            }
+                                        }
+                                        Text(
+                                            text = "Search movies, series, anime, actors, or years (e.g. 1999)",
+                                            color = CineTextSecondary,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                }
+
+                                Text(
+                                    text = "Explore →",
+                                    color = CineGold,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
 
                         // Quick Add Card: The core workflow requested
                         Card(
