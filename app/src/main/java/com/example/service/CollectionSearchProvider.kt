@@ -11,13 +11,33 @@ class CollectionSearchProvider : MovieSearchProvider {
     override val providerName: String = "CineVault collection guide"
 
     override suspend fun search(query: String): List<DiscoveredMovie> {
-        val normalized = query.trim().lowercase().replace(Regex("\\s+"), " ")
+        val normalized = normalize(query)
         return when {
-            normalized in marvelQueries -> marvelMovies
-            normalized in hollywoodQueries -> hollywoodMovies
+            isMarvelCollection(normalized) -> marvelMovies
+            isHollywoodCollection(normalized) -> hollywoodMovies
             else -> emptyList()
         }
     }
+
+    /** Used by the search service to return known collection searches immediately. */
+    fun featuredCollectionFor(query: String): List<DiscoveredMovie> = when {
+        isMarvelCollection(normalize(query)) -> marvelMovies
+        isHollywoodCollection(normalize(query)) -> hollywoodMovies
+        else -> emptyList()
+    }
+
+    private fun normalize(query: String): String = query
+        .trim()
+        .lowercase()
+        .replace(Regex("[^a-z0-9]+"), " ")
+        .trim()
+        .replace(Regex("\\s+"), " ")
+
+    private fun isMarvelCollection(query: String): Boolean =
+        query in marvelQueries || query.startsWith("marvel ") || query.startsWith("mcu ")
+
+    private fun isHollywoodCollection(query: String): Boolean =
+        query in hollywoodQueries || query.startsWith("hollywood ") || query.startsWith("english movies")
 
     override suspend fun getMovieDetails(identifier: String): DiscoveredMovie? =
         (marvelMovies + hollywoodMovies).firstOrNull { it.title.equals(identifier, ignoreCase = true) }

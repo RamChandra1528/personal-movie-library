@@ -57,14 +57,15 @@ data class CollectionStats(
 
 class MovieViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository: MovieRepository
-    private val syncRepository: FirestoreSyncRepository
+    private val database = AppDatabase.getInstance(application)
+    private val repository = MovieRepository(database.movieDao())
+    private val syncRepository = FirestoreSyncRepository(application, database.movieDao())
     private val authManager: AuthManager = AuthManager(application)
     private val searchService: MovieSearchService = MovieSearchService()
 
     val currentUser: StateFlow<FirebaseUser?> = authManager.currentUser
-    val syncStatus: StateFlow<SyncStatus>
-    val cloudSearchHistory: StateFlow<List<CloudSearchRecord>>
+    val syncStatus: StateFlow<SyncStatus> = syncRepository.syncStatus
+    val cloudSearchHistory: StateFlow<List<CloudSearchRecord>> = syncRepository.cloudSearchHistory
 
     private val _showAccountDialog = MutableStateFlow(false)
     val showAccountDialog: StateFlow<Boolean> = _showAccountDialog.asStateFlow()
@@ -75,32 +76,21 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
     private val _isSigningIn = MutableStateFlow(false)
     val isSigningIn: StateFlow<Boolean> = _isSigningIn.asStateFlow()
 
-    init {
-        val db = AppDatabase.getInstance(application)
-        repository = MovieRepository(db.movieDao())
-        syncRepository = FirestoreSyncRepository(application, db.movieDao())
-        syncStatus = syncRepository.syncStatus
-        cloudSearchHistory = syncRepository.cloudSearchHistory
+    val rawMovies: StateFlow<List<MovieEntity>> = repository.allMovies
+        // Keep the database observer alive independently from Compose. Cloud sync starts during
+        // ViewModel construction and must never depend on a screen already being subscribed.
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-        // Listen for authentication changes to start/stop cloud synchronization
+    init {
+        // Start/stop a deterministic cloud sync for the active account. The repository restores
+        // first and backs up missing local records second, so this is safe on cold launches and
+        // after reinstalling the app.
         viewModelScope.launch {
             authManager.currentUser.collect { user ->
-                if (user != null) {
-                    syncRepository.startSync(user.uid)
-                    // If local movies exist, back them up to user's cloud vault
-                    val localMovies = rawMovies.value
-                    if (localMovies.isNotEmpty()) {
-                        syncRepository.backupAllLocalMovies(user.uid, localMovies)
-                    }
-                } else {
-                    syncRepository.stopSync()
-                }
+                if (user != null) syncRepository.startSync(user.uid) else syncRepository.stopSync()
             }
         }
     }
-
-    val rawMovies: StateFlow<List<MovieEntity>> = repository.allMovies
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // UI state filters for personal collection
     private val _searchQuery = MutableStateFlow("")
@@ -161,6 +151,8 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
     val isGlobalSearching: StateFlow<Boolean> = _isGlobalSearching.asStateFlow()
 
     private var debounceJob: Job? = null
+    private var globalSearchJob: Job? = null
+    private var globalSearchGeneration = 0L
 
     // Filtered & Sorted Movie List in Personal Vault
     val displayedMovies: StateFlow<List<MovieEntity>> = combine(
@@ -338,12 +330,16 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
                         _fallbackWebUrl.value = searchService.getBrowserSearchUrl(clean)
                     } else if (autoSaveIfDefinite && matches.size == 1) {
                         val movie = matches.first()
-                        repository.insertMovie(movie.toMovieEntity())
+                        val entity = movie.toMovieEntity()
+                        val id = repository.insertMovie(entity)
+                        uploadMovieForSignedInUser(entity.copy(id = id))
                         _quickAddNotification.value = "Added \"${movie.title}\" (${movie.releaseYear ?: "Film"}) to CineVault!"
                         closeAddDialog()
                     } else if (autoSaveIfDefinite && matches.isNotEmpty() && matches.first().title.equals(clean, ignoreCase = true) && matches.first().posterUrl != null) {
                         val topMatch = matches.first()
-                        repository.insertMovie(topMatch.toMovieEntity())
+                        val entity = topMatch.toMovieEntity()
+                        val id = repository.insertMovie(entity)
+                        uploadMovieForSignedInUser(entity.copy(id = id))
                         _quickAddNotification.value = "Added \"${topMatch.title}\" (${topMatch.releaseYear ?: "Film"}) to CineVault!"
                         closeAddDialog()
                     } else {
@@ -414,6 +410,8 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
         _globalSearchQuery.value = query
         _globalSearchPage.value = 1
         debounceJob?.cancel()
+        globalSearchJob?.cancel()
+        globalSearchGeneration++
 
         if (query.trim().isEmpty()) {
             _globalSearchResponse.value = null
@@ -432,22 +430,29 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
         if (clean.isBlank()) return
 
         _globalSearchPage.value = page
-        viewModelScope.launch {
+        globalSearchJob?.cancel()
+        val requestGeneration = ++globalSearchGeneration
+        globalSearchJob = viewModelScope.launch {
             _isGlobalSearching.value = true
-
-            // Record search query in user cloud history if authenticated
-            currentUser.value?.let { user ->
-                syncRepository.recordSearch(user.uid, clean, _globalEntertainmentType.value ?: "ALL")
+            try {
+                // Persist history off the critical path; a slow network must not delay results.
+                currentUser.value?.let { user ->
+                    viewModelScope.launch {
+                        syncRepository.recordSearch(user.uid, clean, _globalEntertainmentType.value ?: "ALL")
+                    }
+                }
+                val response = searchService.searchGlobalEntertainment(
+                    query = clean,
+                    filterType = _globalEntertainmentType.value,
+                    page = page,
+                    pageSize = 12
+                )
+                _globalSearchResponse.value = response
+            } finally {
+                // A replacement request immediately sets this back to true; this only clears
+                // the spinner when the active request has actually finished or been cancelled.
+                if (globalSearchGeneration == requestGeneration) _isGlobalSearching.value = false
             }
-
-            val response = searchService.searchGlobalEntertainment(
-                query = clean,
-                filterType = _globalEntertainmentType.value,
-                page = page,
-                pageSize = 12
-            )
-            _globalSearchResponse.value = response
-            _isGlobalSearching.value = false
         }
     }
 
@@ -494,13 +499,7 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
             val insertedMovie = entity.copy(id = id)
 
             // Cloud sync
-            currentUser.value?.let { user ->
-                try {
-                    syncRepository.uploadMovie(user.uid, insertedMovie)
-                } catch (e: Exception) {
-                    // Handled inside syncRepository
-                }
-            }
+            uploadMovieForSignedInUser(insertedMovie)
 
             _quickAddNotification.value = "Added \"${discovered.title}\" to CineVault!"
             closeAddDialog()
@@ -515,13 +514,7 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
                 val insertedMovie = movie.copy(id = newId)
 
                 // Cloud sync
-                currentUser.value?.let { user ->
-                    try {
-                        syncRepository.uploadMovie(user.uid, insertedMovie)
-                    } catch (e: Exception) {
-                        // Handled inside syncRepository
-                    }
-                }
+                uploadMovieForSignedInUser(insertedMovie)
 
                 _quickAddNotification.value = "Added \"${movie.title}\" to CineVault!"
                 closeAddDialog()
@@ -530,13 +523,7 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
                 repository.updateMovie(movie)
 
                 // Cloud sync
-                currentUser.value?.let { user ->
-                    try {
-                        syncRepository.uploadMovie(user.uid, movie)
-                    } catch (e: Exception) {
-                        // Handled inside syncRepository
-                    }
-                }
+                uploadMovieForSignedInUser(movie)
 
                 _quickAddNotification.value = "Updated \"${movie.title}\"!"
                 closeEditDialog()
@@ -640,6 +627,17 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
                 _currentScreen.value = Screen.DASHBOARD
             }
             _quickAddNotification.value = "Removed \"${movie.title}\" from collection."
+        }
+    }
+
+    private suspend fun uploadMovieForSignedInUser(movie: MovieEntity) {
+        currentUser.value?.let { user ->
+            try {
+                syncRepository.uploadMovie(user.uid, movie)
+            } catch (_: Exception) {
+                // FirestoreSyncRepository exposes the failure through SyncStatus and Firestore's
+                // local persistence keeps a queued write when the device is temporarily offline.
+            }
         }
     }
 }

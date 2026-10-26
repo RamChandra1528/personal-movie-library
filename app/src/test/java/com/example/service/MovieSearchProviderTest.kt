@@ -35,4 +35,20 @@ class MovieSearchProviderTest {
         assertTrue(hollywood.any { it.title == "Inception" })
         assertTrue((marvel + hollywood).all { it.contentType == EntertainmentType.MOVIE })
     }
+
+    @Test
+    fun `collection search accepts natural-language Marvel and Hollywood requests`() = runTest {
+        val provider = CollectionSearchProvider()
+
+        assertTrue(provider.featuredCollectionFor("Marvel movies, please").isNotEmpty())
+        assertTrue(provider.featuredCollectionFor("Hollywood movies 2024").isNotEmpty())
+    }
+
+    @Test
+    fun `global collection browse returns immediately without provider network calls`() = runTest {
+        val response = MovieSearchService().searchGlobalEntertainment("Marvel movies")
+
+        assertTrue(response.items.any { it.title == "Iron Man" })
+        assertEquals("Featured collection", response.items.first().matchReason)
+    }
 }

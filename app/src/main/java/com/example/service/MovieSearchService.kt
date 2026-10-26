@@ -86,6 +86,25 @@ class MovieSearchService(
         val isYearQuery = clean.matches(Regex("^(19\\d{2}|20[0-2]\\d|2030)$"))
         val targetYear = if (isYearQuery) clean.toInt() else null
 
+        // Category queries are browse requests. Resolve them locally instead of waiting for
+        // five network providers, any one of which can be slow or unavailable.
+        val featuredCollection = collectionProvider.featuredCollectionFor(clean)
+        if (featuredCollection.isNotEmpty()) {
+            val filteredCollection = featuredCollection
+                .filter { filterType.isNullOrBlank() || filterType == "ALL" || it.contentType.equals(filterType, true) }
+                .map { it.copy(relevanceScore = 100f, matchReason = "Featured collection") }
+            return@withContext GlobalSearchResponse(
+                items = filteredCollection,
+                totalEstimatedCount = filteredCollection.size,
+                currentPage = 1,
+                hasMorePages = false,
+                isYearShowcase = false,
+                yearShowcaseNumber = null,
+                didYouMeanSuggestion = null,
+                webSearchUrl = getBrowserSearchUrl(clean)
+            )
+        }
+
         val cacheKey = "global_v2_${clean.lowercase()}_${filterType ?: "all"}_page_${page}_size_$pageSize"
         val cached = cache[cacheKey]
         val cachedSuggestion = suggestionCache[clean.lowercase()]
@@ -107,11 +126,11 @@ class MovieSearchService(
         var didYouMean: String? = cachedSuggestion
 
         try {
-            withTimeoutOrNull(14_000L) {
+            withTimeoutOrNull(6_500L) {
                 if (isYearQuery && targetYear != null) {
                     // YEAR SHOWCASE MODE: Fetch all entertainment from that year with pagination
-                    val wikiYearTask = async { wikipediaProvider.searchByYear(targetYear, page, pageSize = 8) }
-                    val animeYearTask = async { animeProvider.searchByYear(targetYear, page = page) }
+                    val wikiYearTask = async { withTimeoutOrNull(5_000L) { wikipediaProvider.searchByYear(targetYear, page, pageSize = 8) } ?: emptyList() }
+                    val animeYearTask = async { withTimeoutOrNull(5_000L) { animeProvider.searchByYear(targetYear, page = page) } ?: emptyList() }
 
                     val wikiResults = wikiYearTask.await()
                     val animeResults = animeYearTask.await()
@@ -125,14 +144,16 @@ class MovieSearchService(
                     }
                 } else {
                     // GLOBAL KEYWORD / TITLE / ACTOR / GENRE SEARCH
-                    val wikiTask = async { wikipediaProvider.search(clean) }
-                    val tvMazeTask = async { tvMazeProvider.search(clean) }
-                    val animeTask = async { animeProvider.search(clean) }
-                    val imdbTask = async { imdbProvider.search(clean) }
-                    val collectionTask = async { collectionProvider.search(clean) }
+                    // Every provider has its own budget. One unavailable catalogue should not
+                    // erase results already returned by the other four sources.
+                    val wikiTask = async { withTimeoutOrNull(5_000L) { wikipediaProvider.search(clean) } ?: emptyList() }
+                    val tvMazeTask = async { withTimeoutOrNull(5_000L) { tvMazeProvider.search(clean) } ?: emptyList() }
+                    val animeTask = async { withTimeoutOrNull(5_000L) { animeProvider.search(clean) } ?: emptyList() }
+                    val imdbTask = async { withTimeoutOrNull(5_000L) { imdbProvider.search(clean) } ?: emptyList() }
+                    val collectionTask = async { withTimeoutOrNull(1_000L) { collectionProvider.search(clean) } ?: emptyList() }
                     val suggestionTask = async {
                         if (didYouMean == null && clean.length >= 3) {
-                            wikipediaProvider.getFuzzySuggestion(clean)
+                            withTimeoutOrNull(2_500L) { wikipediaProvider.getFuzzySuggestion(clean) }
                         } else null
                     }
 

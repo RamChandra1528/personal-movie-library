@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" role="img" aria-label="Personal Movie Library">
+  <rect width="108" height="108" fill="#0c0b0a"/><circle cx="54" cy="54" r="51" fill="#f5b83f"/><circle cx="54" cy="54" r="47" fill="#1b1815"/><circle cx="54" cy="54" r="42" fill="#0c0b0a"/>
+  <circle cx="42" cy="46" r="25" fill="#b9aa98"/><circle cx="42" cy="46" r="22" fill="#25211e"/>
+  <g fill="#0c0b0a"><circle cx="42" cy="46" r="3"/><circle cx="30" cy="32" r="4"/><circle cx="54" cy="32" r="4"/><circle cx="30" cy="59" r="4"/><circle cx="54" cy="59" r="4"/></g>
+  <path fill="#f3e7c9" d="M67 34c2-5 9-5 10 0 3-4 9-1 8 4 5-1 8 5 4 8l1 25H65z"/><path fill="#b8261b" d="m69 39 5-2 2 33-6 1zm10-2 5 3 1 30-6 1z"/>
+  <path fill="#171615" d="m28 51 44-9 4 11-44 9zm4 10 44-8 3 29-44 4z"/><g fill="#f2e7d1"><path d="m32 50 6-1 8 9-7 2zm15-3 6-1 8 9-7 2zm15-3 6-1 7 8-6 2zm-24 17 7-1 8 8-7 1zm17-2 7-1 8 8-7 1z"/></g><path fill="#f5b83f" d="M52 68v11l11-5.5z"/>
+</svg>

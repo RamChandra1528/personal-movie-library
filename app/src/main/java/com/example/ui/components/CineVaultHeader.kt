@@ -24,6 +24,9 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -49,6 +52,7 @@ import com.example.ui.theme.CineSurface
 import com.example.ui.theme.CineTextPrimary
 import com.example.ui.theme.CineTextSecondary
 import com.example.R
+import com.example.ui.Screen
 
 /** Compact version of the Personal Movie Library reel, clapper, and play-mark logo. */
 @Composable
@@ -236,3 +240,81 @@ fun CineVaultTopBar(
         }
     }
 }
+
+/**
+ * Primary app navigation. All actions that were formerly in the dashboard header
+ * live here so they stay reachable on real devices while scrolling any screen.
+ */
+@Composable
+fun CineVaultBottomBar(
+    currentScreen: Screen,
+    onOpenVault: () -> Unit,
+    onOpenGlobalSearch: () -> Unit,
+    onOpenStats: () -> Unit,
+    onAddNewMovie: () -> Unit,
+    currentUser: FirebaseUser?,
+    isSyncing: Boolean,
+    onOpenAccount: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    NavigationBar(
+        modifier = modifier.testTag("cinevault_bottom_bar"),
+        containerColor = CineSurface,
+        contentColor = CineGold,
+        tonalElevation = 8.dp
+    ) {
+        NavigationBarItem(
+            selected = currentScreen == Screen.DASHBOARD,
+            onClick = onOpenVault,
+            icon = { CineVaultLogo(sizeDp = 27) },
+            label = { Text("Vault", fontSize = 10.sp) },
+            colors = bottomBarItemColors()
+        )
+        NavigationBarItem(
+            selected = currentScreen == Screen.GLOBAL_SEARCH,
+            onClick = onOpenGlobalSearch,
+            icon = { Icon(Icons.Default.Search, contentDescription = "Global search") },
+            label = { Text("Discover", fontSize = 10.sp) },
+            colors = bottomBarItemColors()
+        )
+        NavigationBarItem(
+            selected = currentScreen == Screen.STATS,
+            onClick = onOpenStats,
+            icon = { Icon(Icons.Default.BarChart, contentDescription = "Collection statistics") },
+            label = { Text("Stats", fontSize = 10.sp) },
+            colors = bottomBarItemColors()
+        )
+        NavigationBarItem(
+            selected = false,
+            onClick = onAddNewMovie,
+            icon = { Icon(Icons.Default.Add, contentDescription = "Add movie") },
+            label = { Text("Add", fontSize = 10.sp) },
+            colors = bottomBarItemColors()
+        )
+        NavigationBarItem(
+            selected = false,
+            onClick = onOpenAccount,
+            icon = {
+                if (currentUser != null) {
+                    Icon(
+                        if (isSyncing) Icons.Default.CloudSync else Icons.Default.CloudDone,
+                        contentDescription = "Cloud backup and account"
+                    )
+                } else {
+                    Icon(Icons.Default.CloudSync, contentDescription = "Cloud backup and account")
+                }
+            },
+            label = { Text(if (currentUser != null) "Cloud" else "Sign in", fontSize = 10.sp) },
+            colors = bottomBarItemColors()
+        )
+    }
+}
+
+@Composable
+private fun bottomBarItemColors() = NavigationBarItemDefaults.colors(
+    selectedIconColor = CineDarkBg,
+    selectedTextColor = CineGold,
+    selectedIndicatorColor = CineGold,
+    unselectedIconColor = CineTextSecondary,
+    unselectedTextColor = CineTextSecondary
+)
