@@ -28,20 +28,31 @@ import kotlinx.coroutines.tasks.await
  */
 class AuthManager(private val context: Context) {
 
-    // A locally installable APK may intentionally omit google-services.json. Firebase SDKs
-    // throw during getInstance() in that case, so keep cloud sign-in optional instead of
-    // preventing the offline movie library from launching.
-    private val auth: FirebaseAuth? = runCatching {
-        if (FirebaseApp.getApps(context).isEmpty()) null else FirebaseAuth.getInstance()
-    }.getOrNull()
+    private val auth: FirebaseAuth?
+        get() = try {
+            if (FirebaseApp.getApps(context).isEmpty()) {
+                FirebaseApp.initializeApp(context)
+            }
+            FirebaseAuth.getInstance()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to get FirebaseAuth instance", e)
+            null
+        }
+
     private val credentialManager = CredentialManager.create(context)
 
-    private val _currentUser = MutableStateFlow<FirebaseUser?>(auth?.currentUser)
+    private val _currentUser = MutableStateFlow<FirebaseUser?>(null)
     val currentUser: StateFlow<FirebaseUser?> = _currentUser.asStateFlow()
 
     init {
-        auth?.addAuthStateListener { firebaseAuth ->
-            _currentUser.value = firebaseAuth.currentUser
+        try {
+            val initialUser = auth?.currentUser
+            _currentUser.value = initialUser
+            auth?.addAuthStateListener { firebaseAuth ->
+                _currentUser.value = firebaseAuth.currentUser
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to initialize AuthStateListener", e)
         }
     }
 
@@ -64,10 +75,10 @@ class AuthManager(private val context: Context) {
             if (resId != 0) {
                 context.getString(resId)
             } else {
-                "710389448956-vgeeap22quhe9dbcal6q49134nhvhmv5.apps.googleusercontent.com"
+                "55029889838-bb3hpspdt4192as923g4tef8pi6a0vtq.apps.googleusercontent.com"
             }
         } catch (e: Exception) {
-            "710389448956-vgeeap22quhe9dbcal6q49134nhvhmv5.apps.googleusercontent.com"
+            "55029889838-bb3hpspdt4192as923g4tef8pi6a0vtq.apps.googleusercontent.com"
         }
     }
 

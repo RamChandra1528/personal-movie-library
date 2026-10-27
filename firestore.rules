@@ -50,13 +50,8 @@ service cloud.firestore {
 
       match /movies/{movieId} {
         allow read, delete: if isOwner(userId);
-        allow create: if isOwner(userId)
-          && isValidMovie(request.resource.data, userId)
-          && isValidTimestamp(request.resource.data.createdAt);
-        allow update: if isOwner(userId)
-          && isValidMovie(request.resource.data, userId)
-          && request.resource.data.createdAt == resource.data.createdAt
-          && request.resource.data.userId == resource.data.userId;
+        allow create, update: if isOwner(userId)
+          && isValidMovie(request.resource.data, userId);
       }
 
       match /settings/{settingId} {

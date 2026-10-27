@@ -1,5 +1,5 @@
 {
-  "name": "Personal Movie Library",
+  "name": "CineVault",
   "description": "Personal movie collection with automated public web search, poster discovery, and cloud synchronization.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

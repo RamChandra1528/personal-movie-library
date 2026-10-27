@@ -3,6 +3,7 @@ package com.example
 import com.example.data.EntertainmentType
 import com.example.data.MovieEntity
 import com.example.data.WatchStatus
+import com.example.data.toCloudMovie
 import com.example.service.DiscoveredMovie
 import com.example.service.FuzzyRelevanceRanker
 import org.junit.Assert.assertEquals
@@ -178,5 +179,46 @@ class CineVaultUnitTest {
         val (scoreHw, reasonHw) = FuzzyRelevanceRanker.scoreAndExplain(inception, "Hollywood movies")
         assertTrue("Inception should have high score for 'Hollywood movies': $scoreHw", scoreHw >= 90f)
         assertTrue(reasonHw.contains("Hollywood"))
+    }
+
+    @Test
+    fun testCloudMovieMappingAndUserIsolation() {
+        val original = MovieEntity(
+            id = 42L,
+            title = "The Matrix",
+            releaseYear = 1999,
+            director = "Lana & Lilly Wachowski",
+            personalRating = 5.0f,
+            watchStatus = WatchStatus.COMPLETED,
+            isFavorite = true
+        )
+
+        val testUserId = "user_test_abc_123"
+        val cloudMovie = original.toCloudMovie(
+            userId = testUserId,
+            cloudDocId = "movie_the_matrix_1999"
+        )
+
+        assertEquals("movie_the_matrix_1999", cloudMovie.id)
+        assertEquals(testUserId, cloudMovie.userId)
+        assertEquals("The Matrix", cloudMovie.title)
+        assertEquals(1999, cloudMovie.releaseYear)
+        assertEquals(5.0f, cloudMovie.personalRating)
+        assertEquals(WatchStatus.COMPLETED, cloudMovie.watchStatus)
+        assertTrue(cloudMovie.isFavorite)
+
+        val writeMap = cloudMovie.toWriteMap(isCreate = true)
+        assertEquals("movie_the_matrix_1999", writeMap["id"])
+        assertEquals("The Matrix", writeMap["title"])
+        assertEquals(testUserId, writeMap["userId"])
+        assertTrue(writeMap.containsKey("createdAt"))
+        assertTrue(writeMap.containsKey("updatedAt"))
+
+        val restoredEntity = cloudMovie.toEntity(localId = 42L)
+        assertEquals(42L, restoredEntity.id)
+        assertEquals("The Matrix", restoredEntity.title)
+        assertEquals(1999, restoredEntity.releaseYear)
+        assertEquals(5.0f, restoredEntity.personalRating)
+        assertTrue(restoredEntity.isFavorite)
     }
 }

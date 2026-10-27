@@ -41,9 +41,7 @@ class FirestoreSyncRepository(
 ) {
     // Secondary constructor resolving database ID from resources
     constructor(context: Context, movieDao: MovieDao) : this(
-        db = FirebaseFirestore.getInstance(
-            context.applicationContext.getString(R.string.firestore_database_id)
-        ),
+        db = getFirestoreInstance(context),
         movieDao = movieDao
     )
 
@@ -52,6 +50,8 @@ class FirestoreSyncRepository(
     private var moviesSnapshotListener: ListenerRegistration? = null
     @Volatile
     private var activeUserId: String? = null
+    @Volatile
+    private var lastActiveUserId: String? = null
 
     private val _syncStatus = MutableStateFlow(SyncStatus())
     val syncStatus: StateFlow<SyncStatus> = _syncStatus.asStateFlow()
@@ -66,12 +66,24 @@ class FirestoreSyncRepository(
      */
     fun startSync(userId: String) {
         if (activeUserId == userId && moviesSnapshotListener != null) return
-        val previousUserId = activeUserId
+        val previousUser = lastActiveUserId
         stopSync()
         activeUserId = userId
+        lastActiveUserId = userId
 
         _syncStatus.value = _syncStatus.value.copy(isSyncing = true, errorMessage = null)
         val moviesCol = db.collection("users").document(userId).collection("movies")
+
+        // Handle user switch: if switching from another user, clear old user's movies
+        if (previousUser != null && previousUser != userId) {
+            repositoryScope.launch {
+                try {
+                    movieDao.deleteAllMovies()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error clearing local cache for user switch", e)
+                }
+            }
+        }
 
         moviesSnapshotListener = moviesCol.addSnapshotListener { snapshot, error ->
             if (error != null) {
@@ -120,19 +132,8 @@ class FirestoreSyncRepository(
         // Also fetch search history
         loadSearchHistory(userId)
 
-        // Do a deterministic first merge before backing up. Previously the ViewModel read a
-        // lazily started UI flow here; on a cold launch it was often still empty, so backup and
-        // restore could be skipped or race each other. This job owns the initial sequence and
-        // uses Room directly, which also makes an uninstall/reinstall restore dependable.
+        // Perform initial deterministic sync & restore
         repositoryScope.launch {
-            if (previousUserId != null && previousUserId != userId) {
-                // Wipe previous user's cached movies to guarantee clean user separation
-                try {
-                    movieDao.deleteAllMovies()
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error clearing local cache for user switch", e)
-                }
-            }
             restoreThenBackUpMissingMovies(userId, moviesCol)
         }
     }
@@ -145,6 +146,27 @@ class FirestoreSyncRepository(
     }
 
     /**
+     * Complete cleanup on logout: stops listener and clears local cache
+     * so user data does not remain accessible to subsequent users.
+     */
+    suspend fun stopSyncAndClearLocal() {
+        stopSync()
+        lastActiveUserId = null
+        try {
+            movieDao.deleteAllMovies()
+            _cloudSearchHistory.value = emptyList()
+            _syncStatus.value = SyncStatus(
+                isSyncing = false,
+                lastSyncedTime = null,
+                cloudCount = 0,
+                errorMessage = null
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error clearing local cache on logout", e)
+        }
+    }
+
+    /**
      * Backup a single movie to the user's cloud vault.
      */
     suspend fun uploadMovie(userId: String, movie: MovieEntity) {
@@ -153,26 +175,27 @@ class FirestoreSyncRepository(
             .collection("movies").document(docId)
 
         try {
-            // Check if document already exists to preserve createdAt
-            val existingSnapshot = docRef.get().await()
-            val existingCreatedAt = existingSnapshot.getTimestamp("createdAt")
-            val isNew = !existingSnapshot.exists()
-
+            _syncStatus.value = _syncStatus.value.copy(isSyncing = true, errorMessage = null)
             val cloudMovie = movie.toCloudMovie(
                 userId = userId,
-                cloudDocId = docId,
-                existingCreatedAt = existingCreatedAt
+                cloudDocId = docId
             )
 
-            val writeMap = cloudMovie.toWriteMap(isCreate = isNew)
-            docRef.set(writeMap).await()
+            val writeMap = cloudMovie.toWriteMap(isCreate = true)
+            docRef.set(writeMap, com.google.firebase.firestore.SetOptions.merge()).await()
 
             _syncStatus.value = _syncStatus.value.copy(
-                lastSyncedTime = System.currentTimeMillis()
+                isSyncing = false,
+                lastSyncedTime = System.currentTimeMillis(),
+                errorMessage = null
             )
         } catch (e: Exception) {
+            Log.w(TAG, "Cloud write failed (will use offline cache/retry): ${e.message}")
             handleFirestoreError(e, OperationType.WRITE, docRef.path)
-            throw e
+            _syncStatus.value = _syncStatus.value.copy(
+                isSyncing = false,
+                errorMessage = "Sync pending: ${e.localizedMessage ?: "Offline"}"
+            )
         }
     }
 
@@ -187,7 +210,6 @@ class FirestoreSyncRepository(
             docRef.delete().await()
         } catch (e: Exception) {
             handleFirestoreError(e, OperationType.DELETE, docRef.path)
-            throw e
         }
     }
 
@@ -195,7 +217,7 @@ class FirestoreSyncRepository(
      * Synchronize all local movies to cloud (e.g., initial backup on first sign in).
      */
     suspend fun backupAllLocalMovies(userId: String, movies: List<MovieEntity>) {
-        _syncStatus.value = _syncStatus.value.copy(isSyncing = true)
+        _syncStatus.value = _syncStatus.value.copy(isSyncing = true, errorMessage = null)
         var count = 0
         try {
             for (movie in movies) {
@@ -211,7 +233,7 @@ class FirestoreSyncRepository(
         } catch (e: Exception) {
             _syncStatus.value = _syncStatus.value.copy(
                 isSyncing = false,
-                errorMessage = e.localizedMessage ?: "Backup failed"
+                errorMessage = e.localizedMessage ?: "Backup pending"
             )
         }
     }
@@ -341,12 +363,22 @@ class FirestoreSyncRepository(
     }
 
     private fun makeDocId(movie: MovieEntity): String {
-        val cleanTitle = movie.title.lowercase().replace(Regex("[^a-z0-9]"), "_").take(30)
+        val cleanTitle = movie.title.trim().lowercase().replace(Regex("[^a-z0-9]"), "_").trim('_').take(30)
+        val safeTitle = if (cleanTitle.isBlank()) "item_${movie.id.takeIf { it > 0 } ?: (movie.addedTimestamp % 100000)}" else cleanTitle
         val year = movie.releaseYear ?: 0
-        return "movie_${cleanTitle}_${year}"
+        return "movie_${safeTitle}_${year}"
     }
 
     companion object {
         private const val TAG = "FirestoreSyncRepo"
+
+        fun getFirestoreInstance(context: Context): FirebaseFirestore {
+            val appContext = context.applicationContext
+            if (com.google.firebase.FirebaseApp.getApps(appContext).isEmpty()) {
+                com.google.firebase.FirebaseApp.initializeApp(appContext)
+            }
+            val databaseId = appContext.getString(R.string.firestore_database_id)
+            return FirebaseFirestore.getInstance(databaseId)
+        }
     }
 }

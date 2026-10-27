@@ -209,6 +209,9 @@ fun CineVaultApp(viewModel: MovieViewModel) {
                     isSigningIn = isSigningIn,
                     authError = authError,
                     onSignInWithGoogle = viewModel::signInWithGoogle,
+                    onSignInWithEmail = viewModel::signInWithEmail,
+                    onRegisterWithEmail = viewModel::registerWithEmail,
+                    onResetPassword = viewModel::resetPassword,
                     onSignOut = viewModel::signOut,
                     onForceSync = viewModel::forceSyncAll,
                     onDismiss = viewModel::closeAccountDialog

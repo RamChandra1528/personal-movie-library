@@ -1,7 +1,7 @@
 {
   "firestore": [
     {
-      "database": "ai-studio-android-cinevaul-abe26308-c2fd-4382-a365-b52b0b378746",
+      "database": "ai-studio-android-personal-6da4680e-2401-4548-8b8f-018b92d00506",
       "rules": "firestore.rules"
     }
   ],

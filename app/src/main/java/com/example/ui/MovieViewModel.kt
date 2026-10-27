@@ -57,14 +57,18 @@ data class CollectionStats(
 
 class MovieViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository: MovieRepository
-    private val syncRepository: FirestoreSyncRepository
+    private val db = AppDatabase.getInstance(application)
+    private val repository: MovieRepository = MovieRepository(db.movieDao())
+    private val syncRepository: FirestoreSyncRepository = FirestoreSyncRepository(application, db.movieDao())
     private val authManager: AuthManager = AuthManager(application)
     private val searchService: MovieSearchService = MovieSearchService()
 
+    val rawMovies: StateFlow<List<MovieEntity>> = repository.allMovies
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val currentUser: StateFlow<FirebaseUser?> = authManager.currentUser
-    val syncStatus: StateFlow<SyncStatus>
-    val cloudSearchHistory: StateFlow<List<CloudSearchRecord>>
+    val syncStatus: StateFlow<SyncStatus> = syncRepository.syncStatus
+    val cloudSearchHistory: StateFlow<List<CloudSearchRecord>> = syncRepository.cloudSearchHistory
 
     private val _showAccountDialog = MutableStateFlow(false)
     val showAccountDialog: StateFlow<Boolean> = _showAccountDialog.asStateFlow()
@@ -76,31 +80,17 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
     val isSigningIn: StateFlow<Boolean> = _isSigningIn.asStateFlow()
 
     init {
-        val db = AppDatabase.getInstance(application)
-        repository = MovieRepository(db.movieDao())
-        syncRepository = FirestoreSyncRepository(application, db.movieDao())
-        syncStatus = syncRepository.syncStatus
-        cloudSearchHistory = syncRepository.cloudSearchHistory
-
         // Listen for authentication changes to start/stop cloud synchronization
         viewModelScope.launch {
             authManager.currentUser.collect { user ->
                 if (user != null) {
                     syncRepository.startSync(user.uid)
-                    // If local movies exist, back them up to user's cloud vault
-                    val localMovies = rawMovies.value
-                    if (localMovies.isNotEmpty()) {
-                        syncRepository.backupAllLocalMovies(user.uid, localMovies)
-                    }
                 } else {
                     syncRepository.stopSync()
                 }
             }
         }
     }
-
-    val rawMovies: StateFlow<List<MovieEntity>> = repository.allMovies
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // UI state filters for personal collection
     private val _searchQuery = MutableStateFlow("")
@@ -338,12 +328,22 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
                         _fallbackWebUrl.value = searchService.getBrowserSearchUrl(clean)
                     } else if (autoSaveIfDefinite && matches.size == 1) {
                         val movie = matches.first()
-                        repository.insertMovie(movie.toMovieEntity())
+                        val entity = movie.toMovieEntity()
+                        val newId = repository.insertMovie(entity)
+                        val insertedMovie = entity.copy(id = newId)
+                        currentUser.value?.let { user ->
+                            syncRepository.uploadMovie(user.uid, insertedMovie)
+                        }
                         _quickAddNotification.value = "Added \"${movie.title}\" (${movie.releaseYear ?: "Film"}) to CineVault!"
                         closeAddDialog()
                     } else if (autoSaveIfDefinite && matches.isNotEmpty() && matches.first().title.equals(clean, ignoreCase = true) && matches.first().posterUrl != null) {
                         val topMatch = matches.first()
-                        repository.insertMovie(topMatch.toMovieEntity())
+                        val entity = topMatch.toMovieEntity()
+                        val newId = repository.insertMovie(entity)
+                        val insertedMovie = entity.copy(id = newId)
+                        currentUser.value?.let { user ->
+                            syncRepository.uploadMovie(user.uid, insertedMovie)
+                        }
                         _quickAddNotification.value = "Added \"${topMatch.title}\" (${topMatch.releaseYear ?: "Film"}) to CineVault!"
                         closeAddDialog()
                     } else {
@@ -384,7 +384,6 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
             result.onSuccess { user ->
                 _quickAddNotification.value = "Signed in as ${user.displayName ?: user.email}"
                 _isSigningIn.value = false
-                // Cloud sync begins automatically via authState listener in init
             }.onFailure { error ->
                 _authError.value = error.localizedMessage ?: "Google Sign-In failed"
                 _isSigningIn.value = false
@@ -392,9 +391,52 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun signInWithEmail(email: String, pass: String) {
+        viewModelScope.launch {
+            _isSigningIn.value = true
+            _authError.value = null
+            val result = authManager.signInWithEmail(email, pass)
+            result.onSuccess { user ->
+                _quickAddNotification.value = "Welcome back, ${user.email ?: "Member"}!"
+                _isSigningIn.value = false
+            }.onFailure { error ->
+                _authError.value = error.localizedMessage ?: "Sign-in failed"
+                _isSigningIn.value = false
+            }
+        }
+    }
+
+    fun registerWithEmail(email: String, pass: String) {
+        viewModelScope.launch {
+            _isSigningIn.value = true
+            _authError.value = null
+            val result = authManager.registerWithEmail(email, pass)
+            result.onSuccess { user ->
+                _quickAddNotification.value = "Account created for ${user.email}!"
+                _isSigningIn.value = false
+            }.onFailure { error ->
+                _authError.value = error.localizedMessage ?: "Registration failed"
+                _isSigningIn.value = false
+            }
+        }
+    }
+
+    fun resetPassword(email: String) {
+        viewModelScope.launch {
+            _authError.value = null
+            val result = authManager.sendPasswordReset(email)
+            result.onSuccess {
+                _quickAddNotification.value = "Password reset link sent to $email"
+            }.onFailure { error ->
+                _authError.value = error.localizedMessage ?: "Failed to send reset email"
+            }
+        }
+    }
+
     fun signOut() {
         viewModelScope.launch {
             authManager.signOut()
+            syncRepository.stopSyncAndClearLocal()
             _quickAddNotification.value = "Signed out of CineVault"
         }
     }

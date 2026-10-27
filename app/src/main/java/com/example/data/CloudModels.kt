@@ -110,10 +110,10 @@ data class CloudMovie(
         personalNotes?.let { map["personalNotes"] = it }
         imdbId?.let { map["imdbId"] = it }
 
-        if (isCreate) {
-            map["createdAt"] = FieldValue.serverTimestamp()
-        } else if (createdAt != null) {
+        if (createdAt != null) {
             map["createdAt"] = createdAt
+        } else {
+            map["createdAt"] = FieldValue.serverTimestamp()
         }
 
         return map
