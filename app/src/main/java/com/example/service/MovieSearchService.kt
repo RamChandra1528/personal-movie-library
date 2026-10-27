@@ -105,11 +105,28 @@ class MovieSearchService(
         var didYouMean: String? = cachedSuggestion
 
         try {
-            withTimeoutOrNull(14_000L) {
+            // First check Curated Entertainment Registry for instant, verified matching (Marvel, Hollywood, Classics)
+            val curatedMatches = if (!isYearQuery) CuratedEntertainmentRegistry.findMatching(clean) else emptyList()
+            for (item in curatedMatches) {
+                val key = "${item.title.lowercase()}_${item.releaseYear ?: 0}_${item.contentType}"
+                if (!seenKeys.contains(key)) {
+                    seenKeys.add(key)
+                    val (score, reason) = FuzzyRelevanceRanker.scoreAndExplain(item, clean)
+                    allResults.add(item.copy(relevanceScore = maxOf(score, 90f), matchReason = reason))
+                }
+            }
+
+            // If we have strong curated matches, use a fast 2.0s network budget; otherwise 3.5s max
+            val networkTimeoutMs = if (allResults.size >= 4) 2000L else 3500L
+
+            withTimeoutOrNull(networkTimeoutMs) {
                 if (isYearQuery && targetYear != null) {
-                    // YEAR SHOWCASE MODE: Fetch all entertainment from that year with pagination
                     val wikiYearTask = async { wikipediaProvider.searchByYear(targetYear, page, pageSize = 8) }
-                    val animeYearTask = async { animeProvider.searchByYear(targetYear, page = page) }
+                    val animeYearTask = async {
+                        if (filterType == null || filterType == EntertainmentType.ANIME) {
+                            animeProvider.searchByYear(targetYear, page = page)
+                        } else emptyList()
+                    }
 
                     val wikiResults = wikiYearTask.await()
                     val animeResults = animeYearTask.await()
@@ -122,23 +139,19 @@ class MovieSearchService(
                         }
                     }
                 } else {
-                    // First check Curated Entertainment Registry for instant, verified matching (Marvel, Hollywood, Classics)
-                    val curatedMatches = CuratedEntertainmentRegistry.findMatching(clean)
-                    for (item in curatedMatches) {
-                        val key = "${item.title.lowercase()}_${item.releaseYear ?: 0}_${item.contentType}"
-                        if (!seenKeys.contains(key)) {
-                            seenKeys.add(key)
-                            val (score, reason) = FuzzyRelevanceRanker.scoreAndExplain(item, clean)
-                            allResults.add(item.copy(relevanceScore = maxOf(score, 90f), matchReason = reason))
-                        }
-                    }
-
-                    // Query real-time providers concurrently
+                    // Query external providers concurrently with smart type filtering
                     val wikiTask = async { wikipediaProvider.search(clean) }
-                    val tvMazeTask = async { tvMazeProvider.search(clean) }
-                    val animeTask = async { animeProvider.search(clean) }
+                    val tvMazeTask = async {
+                        if (filterType == null || filterType == EntertainmentType.TV_SERIES || filterType == EntertainmentType.DRAMA) {
+                            tvMazeProvider.search(clean)
+                        } else emptyList()
+                    }
+                    val animeTask = async {
+                        val isAnimeQuery = clean.contains("anime", ignoreCase = true) || filterType == EntertainmentType.ANIME
+                        if (isAnimeQuery) animeProvider.search(clean) else emptyList()
+                    }
                     val suggestionTask = async {
-                        if (didYouMean == null && clean.length >= 3) {
+                        if (didYouMean == null && clean.length >= 3 && allResults.isEmpty()) {
                             wikipediaProvider.getFuzzySuggestion(clean)
                         } else null
                     }

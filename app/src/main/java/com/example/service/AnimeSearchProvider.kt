@@ -10,10 +10,7 @@ import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
 class AnimeSearchProvider(
-    private val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(8, TimeUnit.SECONDS)
-        .readTimeout(8, TimeUnit.SECONDS)
-        .build()
+    private val client: OkHttpClient = NetworkClient.client
 ) : MovieSearchProvider {
 
     override val providerName: String = "Jikan Global Anime Registry"

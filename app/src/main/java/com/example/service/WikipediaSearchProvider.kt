@@ -14,10 +14,7 @@ import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
 
 class WikipediaSearchProvider(
-    private val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
-        .build()
+    private val client: OkHttpClient = NetworkClient.client
 ) : MovieSearchProvider {
 
     override val providerName: String = "Wikipedia & Wikimedia"
@@ -44,7 +41,7 @@ class WikipediaSearchProvider(
 
             val primarySearch = if (hasMovieWord) cleanQuery else "$cleanQuery film"
             val encodedSearch = URLEncoder.encode(primarySearch, "UTF-8")
-            val searchUrl = "https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=$encodedSearch&srlimit=10&format=json"
+            val searchUrl = "https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=$encodedSearch&srlimit=8&format=json"
 
             val request = Request.Builder()
                 .url(searchUrl)
@@ -64,7 +61,6 @@ class WikipediaSearchProvider(
                         for (i in 0 until searchArr.length()) {
                             val item = searchArr.getJSONObject(i)
                             val title = item.optString("title")
-                            // Filter out meta, list, and index pages
                             val isMeta = title.startsWith("List of", ignoreCase = true) ||
                                     title.startsWith("Timeline of", ignoreCase = true) ||
                                     title.startsWith("Category:", ignoreCase = true) ||
@@ -77,10 +73,10 @@ class WikipediaSearchProvider(
                 }
             }
 
-            // If base keywords differ (e.g. "Marvel movies" -> "Marvel"), also search base keyword
-            if (titles.size < 4 && baseKeywords.isNotEmpty() && !baseKeywords.equals(cleanQuery, ignoreCase = true)) {
+            // Only fallback to secondary search if primary search found 0 titles
+            if (titles.isEmpty() && baseKeywords.isNotEmpty() && !baseKeywords.equals(cleanQuery, ignoreCase = true)) {
                 val encodedBase = URLEncoder.encode(baseKeywords, "UTF-8")
-                val baseUrl = "https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=$encodedBase&srlimit=6&format=json"
+                val baseUrl = "https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=$encodedBase&srlimit=5&format=json"
                 val baseReq = Request.Builder().url(baseUrl).header("User-Agent", userAgent).build()
                 val baseResp = client.newCall(baseReq).execute()
                 if (baseResp.isSuccessful) {
@@ -102,17 +98,8 @@ class WikipediaSearchProvider(
                 }
             }
 
-            // Also check OpenSearch for fuzzy corrections if titles is still small
-            if (titles.size < 3) {
-                val fuzzyTitles = fetchOpenSearchSuggestions(cleanQuery)
-                for (ft in fuzzyTitles) {
-                    val isMeta = ft.startsWith("List of", ignoreCase = true)
-                    if (!titles.contains(ft) && !isMeta) titles.add(ft)
-                }
-            }
-
-            // Fetch summary for top results in parallel
-            val deferred = titles.take(6).map { title ->
+            // Fetch summary for top results in parallel (max 4 to reduce latency)
+            val deferred = titles.take(4).map { title ->
                 async {
                     fetchSummaryForTitle(title)
                 }

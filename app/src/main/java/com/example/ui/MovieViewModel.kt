@@ -423,15 +423,32 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
         _globalSearchPage.value = 1
         debounceJob?.cancel()
 
-        if (query.trim().isEmpty()) {
+        val clean = query.trim()
+        if (clean.isEmpty()) {
             _globalSearchResponse.value = null
             _isGlobalSearching.value = false
             return
         }
 
+        // Instant local/curated search response (0ms sub-millisecond return)
+        val instantMatches = com.example.service.CuratedEntertainmentRegistry.findMatching(clean)
+        if (instantMatches.isNotEmpty()) {
+            _globalSearchResponse.value = GlobalSearchResponse(
+                items = instantMatches,
+                totalEstimatedCount = instantMatches.size,
+                currentPage = 1,
+                hasMorePages = false,
+                isYearShowcase = false,
+                yearShowcaseNumber = null,
+                didYouMeanSuggestion = null,
+                webSearchUrl = searchService.getBrowserSearchUrl(clean)
+            )
+            _isGlobalSearching.value = false
+        }
+
         debounceJob = viewModelScope.launch {
-            delay(400) // 400ms debounce
-            executeGlobalSearch(query.trim(), page = 1)
+            delay(120) // Fast 120ms debounce
+            executeGlobalSearch(clean, page = 1)
         }
     }
 
@@ -441,7 +458,10 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
 
         _globalSearchPage.value = page
         viewModelScope.launch {
-            _isGlobalSearching.value = true
+            // Only show full-screen spinner if we have no instant matches yet
+            if (_globalSearchResponse.value == null || _globalSearchResponse.value?.items?.isEmpty() == true) {
+                _isGlobalSearching.value = true
+            }
 
             // Record search query in user cloud history if authenticated
             currentUser.value?.let { user ->
