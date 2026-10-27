@@ -9,17 +9,87 @@ object FuzzyRelevanceRanker {
      * Compute relevance score and match reason for a candidate entertainment item against a search query.
      */
     fun scoreAndExplain(movie: DiscoveredMovie, query: String): Pair<Float, String> {
-        val q = query.trim().lowercase()
+        val normalizedQuery = normalizeEntertainmentQuery(query)
+        val q = normalizedQuery.trim().lowercase()
+        val originalLower = query.trim().lowercase()
         val titleLower = movie.title.lowercase()
         val cleanKeyword = q
             .replace("movies", "")
             .replace("movie", "")
             .replace("films", "")
             .replace("film", "")
+            .replace("series", "")
+            .replace("shows", "")
+            .replace("show", "")
             .trim()
 
-        // 0. Special Studio / Franchise Queries ("Marvel movies", "Hollywood movies", "MCU", etc.)
-        if (q.contains("marvel") || q.contains("mcu")) {
+        // 0. Special Industry & Franchise Recognition
+
+        // A. Bollywood / Hindi Cinema
+        val isBollywoodSearch = q.contains("bollywood") || q.contains("hindi") ||
+                originalLower.contains("bolly") || originalLower.contains("hindi")
+        if (isBollywoodSearch) {
+            val isBollywood = (movie.language?.contains("Hindi", ignoreCase = true) == true) ||
+                    movie.sourceName.contains("Bollywood", ignoreCase = true) ||
+                    movie.sourceName.contains("Hindi", ignoreCase = true) ||
+                    movie.cast.any { it.contains("Khan", ignoreCase = true) || it.contains("Kapoor", ignoreCase = true) || it.contains("Bachchan", ignoreCase = true) }
+            if (isBollywood) {
+                return 97f to "Bollywood (Hindi Cinema)"
+            }
+        }
+
+        // B. Tollywood / Telugu / South Indian Cinema
+        val isTollywoodSearch = q.contains("tollywood") || q.contains("telugu") ||
+                originalLower.contains("tolly") || originalLower.contains("telugu") ||
+                q.contains("south movie")
+        if (isTollywoodSearch) {
+            val isTollywood = (movie.language?.contains("Telugu", ignoreCase = true) == true) ||
+                    movie.sourceName.contains("Tollywood", ignoreCase = true) ||
+                    movie.sourceName.contains("Telugu", ignoreCase = true) ||
+                    movie.director.contains("Rajamouli", ignoreCase = true) ||
+                    movie.director.contains("Sukumar", ignoreCase = true) ||
+                    movie.cast.any { it.contains("Prabhas", ignoreCase = true) || it.contains("Allu Arjun", ignoreCase = true) || it.contains("Ram Charan", ignoreCase = true) || it.contains("NTR", ignoreCase = true) }
+            if (isTollywood) {
+                return 97f to "Tollywood (Telugu Cinema)"
+            }
+        }
+
+        // C. Indian Cinema (Pan-India)
+        val isIndianSearch = q.contains("indian") || originalLower.contains("indian") ||
+                originalLower.contains("o indian") || q.contains("desi") || q.contains("bharat")
+        if (isIndianSearch) {
+            val isIndian = movie.sourceName.contains("Indian", ignoreCase = true) ||
+                    (movie.language?.contains("Hindi", ignoreCase = true) == true) ||
+                    (movie.language?.contains("Telugu", ignoreCase = true) == true) ||
+                    (movie.language?.contains("Tamil", ignoreCase = true) == true) ||
+                    (movie.language?.contains("Kannada", ignoreCase = true) == true) ||
+                    (movie.language?.contains("Malayalam", ignoreCase = true) == true)
+            if (isIndian) {
+                return 96f to "Indian Cinema"
+            }
+        }
+
+        // D. TV Series, Web Series & Television Shows
+        val isTvOrWebSearch = q.contains("tv") || q.contains("series") || q.contains("web series") ||
+                q.contains("show") || originalLower.contains("tv") || originalLower.contains("sresies") ||
+                originalLower.contains("resylt")
+        if (isTvOrWebSearch) {
+            val isTvOrWeb = movie.contentType == com.example.data.EntertainmentType.TV_SERIES ||
+                    movie.contentType == com.example.data.EntertainmentType.DRAMA ||
+                    movie.sourceName.contains("TV", ignoreCase = true) ||
+                    movie.sourceName.contains("Series", ignoreCase = true) ||
+                    movie.sourceName.contains("HBO", ignoreCase = true) ||
+                    movie.sourceName.contains("Netflix", ignoreCase = true) ||
+                    movie.sourceName.contains("Amazon", ignoreCase = true) ||
+                    movie.sourceName.contains("Hotstar", ignoreCase = true) ||
+                    movie.sourceName.contains("Sony LIV", ignoreCase = true)
+            if (isTvOrWeb) {
+                return 96f to "TV & Web Series"
+            }
+        }
+
+        // E. Marvel Cinematic Universe
+        if (q.contains("marvel") || q.contains("mcu") || originalLower.contains("marvel")) {
             val isMarvel = movie.sourceName.contains("Marvel", ignoreCase = true) ||
                     movie.alternateTitles.any { it.contains("Marvel", ignoreCase = true) } ||
                     movie.genres.any { it.contains("Superhero", ignoreCase = true) } ||
@@ -31,7 +101,8 @@ object FuzzyRelevanceRanker {
             }
         }
 
-        if (q.contains("hollywood") || q.contains("blockbuster")) {
+        // F. Hollywood & Blockbusters
+        if (q.contains("hollywood") || q.contains("blockbuster") || originalLower.contains("hollywood")) {
             val isHollywood = movie.sourceName.contains("Hollywood", ignoreCase = true) ||
                     movie.sourceName.contains("Warner", ignoreCase = true) ||
                     movie.sourceName.contains("Paramount", ignoreCase = true) ||
@@ -156,5 +227,59 @@ object FuzzyRelevanceRanker {
         }
 
         return cost[len0 - 1]
+    }
+
+    /**
+     * Normalizes queries by collapsing repeated typo letters and mapping industry slang/typos.
+     */
+    fun normalizeEntertainmentQuery(query: String): String {
+        var q = query.trim().lowercase()
+        if (q.isBlank()) return ""
+
+        // Collapse 3 or more repeated letters to 2 (e.g. bollywoood -> bollywood, tollywoood -> tollywood)
+        q = q.replace(Regex("([a-z])\\1{2,}"), "$1$1")
+
+        val typoMap = mapOf(
+            "bollywoood" to "bollywood",
+            "bollywod" to "bollywood",
+            "bolywood" to "bollywood",
+            "bolliwood" to "bollywood",
+            "tollywoood" to "tollywood",
+            "tollywod" to "tollywood",
+            "tolywood" to "tollywood",
+            "tolliwood" to "tollywood",
+            "kollywoood" to "kollywood",
+            "kollywod" to "kollywood",
+            "kolywood" to "kollywood",
+            "hollywoood" to "hollywood",
+            "hollywod" to "hollywood",
+            "we sresies" to "web series",
+            "we series" to "web series",
+            "web sresies" to "web series",
+            "webseries" to "web series",
+            "tv resylt" to "tv series",
+            "tv result" to "tv series",
+            "tv resylts" to "tv series",
+            "tv results" to "tv series",
+            "tv show" to "tv series",
+            "tv shows" to "tv series",
+            "tv serie" to "tv series",
+            "tv seris" to "tv series",
+            "o indian" to "indian",
+            "indiqn" to "indian",
+            "indain" to "indian",
+            "mview" to "movie",
+            "mviews" to "movies",
+            "mvoie" to "movie",
+            "mvoies" to "movies"
+        )
+
+        for ((typo, corrected) in typoMap) {
+            if (q == typo) {
+                return corrected
+            }
+            q = q.replace(Regex("\\b${Regex.escape(typo)}\\b"), corrected)
+        }
+        return q.trim()
     }
 }

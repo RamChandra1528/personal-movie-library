@@ -221,4 +221,44 @@ class CineVaultUnitTest {
         assertEquals(5.0f, restoredEntity.personalRating)
         assertTrue(restoredEntity.isFavorite)
     }
+
+    @Test
+    fun testIndustryQueryNormalization() {
+        assertEquals("bollywood", FuzzyRelevanceRanker.normalizeEntertainmentQuery("bollywoood"))
+        assertEquals("tollywood", FuzzyRelevanceRanker.normalizeEntertainmentQuery("tollywoood"))
+        assertEquals("web series", FuzzyRelevanceRanker.normalizeEntertainmentQuery("we sresies"))
+        assertEquals("tv series", FuzzyRelevanceRanker.normalizeEntertainmentQuery("tv resylt"))
+        assertEquals("indian", FuzzyRelevanceRanker.normalizeEntertainmentQuery("o indian"))
+    }
+
+    @Test
+    fun testCuratedBollywoodAndTollywoodMatches() {
+        val bollywoodResults = com.example.service.CuratedEntertainmentRegistry.findMatching("bollywoood")
+        assertTrue("Bollywood search with typos should return matches", bollywoodResults.isNotEmpty())
+        assertTrue(bollywoodResults.any { it.title.equals("Jawan", ignoreCase = true) || it.title.equals("Pathaan", ignoreCase = true) })
+
+        val tollywoodResults = com.example.service.CuratedEntertainmentRegistry.findMatching("tollywoood")
+        assertTrue("Tollywood search with typos should return matches", tollywoodResults.isNotEmpty())
+        assertTrue(tollywoodResults.any { it.title.contains("Pushpa", ignoreCase = true) || it.title.contains("RRR", ignoreCase = true) })
+    }
+
+    @Test
+    fun testCuratedTvAndWebSeriesMatches() {
+        val tvResults = com.example.service.CuratedEntertainmentRegistry.findMatching("tv resylt")
+        assertTrue("TV series search with typos should return matches", tvResults.isNotEmpty())
+        assertTrue(tvResults.any { it.contentType == EntertainmentType.TV_SERIES })
+
+        val webSeriesResults = com.example.service.CuratedEntertainmentRegistry.findMatching("we sresies")
+        assertTrue("Web series search with typos should return matches", webSeriesResults.isNotEmpty())
+        assertTrue(webSeriesResults.any { it.title.equals("Mirzapur", ignoreCase = true) || it.title.equals("Panchayat", ignoreCase = true) || it.title.equals("Breaking Bad", ignoreCase = true) })
+    }
+
+    @Test
+    fun testCuratedRegistryTotalCoverage() {
+        val all = com.example.service.CuratedEntertainmentRegistry.ALL_CURATED
+        assertTrue("Curated database should have at least 40 entries", all.size >= 40)
+        assertTrue("Curated database should contain TV series", all.any { it.contentType == EntertainmentType.TV_SERIES })
+        assertTrue("Curated database should contain Bollywood films", all.any { it.sourceName.contains("Bollywood") || (it.language?.contains("Hindi") == true) })
+        assertTrue("Curated database should contain Tollywood films", all.any { it.sourceName.contains("Tollywood") || (it.language?.contains("Telugu") == true) })
+    }
 }

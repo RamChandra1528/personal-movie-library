@@ -16,12 +16,20 @@ class TvMazeSearchProvider(
     override val providerName: String = "TVMaze Global TV & Series Registry"
 
     override suspend fun search(query: String): List<DiscoveredMovie> = withContext(Dispatchers.IO) {
-        val clean = query.trim()
+        val normalized = FuzzyRelevanceRanker.normalizeEntertainmentQuery(query)
+        val clean = if (normalized.isNotBlank()) normalized else query.trim()
         if (clean.isEmpty()) return@withContext emptyList()
 
         try {
-            val encoded = URLEncoder.encode(clean, "UTF-8")
-            val url = "https://api.tvmaze.com/search/shows?q=$encoded"
+            val isBroadTvQuery = clean == "tv" || clean == "tv series" || clean == "tv shows" ||
+                    clean == "web series" || clean == "series" || clean == "shows" || clean == "drama"
+
+            val url = if (isBroadTvQuery) {
+                "https://api.tvmaze.com/shows?page=0"
+            } else {
+                val encoded = URLEncoder.encode(clean, "UTF-8")
+                "https://api.tvmaze.com/search/shows?q=$encoded"
+            }
 
             val request = Request.Builder()
                 .url(url)
@@ -35,11 +43,13 @@ class TvMazeSearchProvider(
             val array = JSONArray(body)
             val results = mutableListOf<DiscoveredMovie>()
 
-            for (i in 0 until array.length().coerceAtMost(6)) {
+            val maxItems = if (isBroadTvQuery) 12 else 8
+            for (i in 0 until array.length().coerceAtMost(maxItems)) {
                 val item = array.getJSONObject(i)
-                val show = item.optJSONObject("show") ?: continue
+                val show = item.optJSONObject("show") ?: item
 
                 val name = show.optString("name")
+                if (name.isBlank()) continue
                 val premiered = show.optString("premiered")
                 val year = if (premiered.length >= 4) premiered.substring(0, 4).toIntOrNull() else null
 

@@ -285,6 +285,50 @@ fun GlobalSearchScreen(
                 }
             }
 
+            // Quick Industry & Media Explore Pills
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 3.dp)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Explore:",
+                    color = CineTextTertiary,
+                    fontSize = 11.sp
+                )
+                val industries = listOf(
+                    "Bollywood" to "Bollywood 🇮🇳",
+                    "Tollywood" to "Tollywood 🦁",
+                    "Indian Cinema" to "Indian Cinema 🦚",
+                    "Web Series" to "Web Series 📡",
+                    "Hollywood" to "Hollywood 🌟",
+                    "Marvel" to "Marvel ⚡"
+                )
+                industries.forEach { (keyword, label) ->
+                    val isSelected = searchQuery.equals(keyword, ignoreCase = true)
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isSelected) CineGold else CineSurfaceVariant,
+                        border = androidx.compose.foundation.BorderStroke(0.5.dp, if (isSelected) CineGold else CineCardBorder),
+                        modifier = Modifier.clickable {
+                            onQueryChanged(keyword)
+                            onSearchSubmitted(keyword)
+                        }
+                    ) {
+                        Text(
+                            text = label,
+                            color = if (isSelected) CineDarkBg else CineTextPrimary,
+                            fontSize = 11.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                }
+            }
+
             // Quick Year Jump Chips
             Row(
                 modifier = Modifier

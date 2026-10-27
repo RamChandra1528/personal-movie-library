@@ -13,7 +13,7 @@ import com.example.data.EntertainmentType
  */
 object CuratedEntertainmentRegistry {
 
-    val ALL_CURATED: List<DiscoveredMovie> = listOf(
+    private val BASE_CURATED: List<DiscoveredMovie> = listOf(
         // MARVEL CINEMATIC UNIVERSE & MARVEL MOVIES
         DiscoveredMovie(
             title = "Avengers: Endgame",
@@ -667,52 +667,130 @@ object CuratedEntertainmentRegistry {
     )
 
     /**
+     * Unified, curated worldwide entertainment database comprising Hollywood, Marvel,
+     * Bollywood, Tollywood, South Indian Cinema, Global TV Series, Indian Web Series, and Anime.
+     */
+    val ALL_CURATED: List<DiscoveredMovie> = BASE_CURATED + CuratedIndianCinema.ALL_INDIAN + CuratedSeriesCatalog.ALL_SERIES
+
+    /**
      * Search the curated entertainment registry with full fuzzy typo-tolerance,
-     * franchise detection, and relevance scoring.
+     * industry detection (Bollywood, Tollywood, Indian Cinema, TV & Web Series, Hollywood, Marvel),
+     * and relevance scoring.
      */
     fun findMatching(query: String): List<DiscoveredMovie> {
-        val q = query.trim().lowercase()
-        if (q.isBlank()) return emptyList()
+        val normalized = FuzzyRelevanceRanker.normalizeEntertainmentQuery(query)
+        val q = normalized.lowercase()
+        val original = query.trim().lowercase()
+        if (original.isBlank() && q.isBlank()) return emptyList()
 
         val cleanKeywords = q
             .replace("movies", "")
             .replace("movie", "")
             .replace("films", "")
             .replace("film", "")
+            .replace("series", "")
+            .replace("shows", "")
+            .replace("show", "")
             .trim()
 
-        val isMarvelQuery = q.contains("marvel") || q.contains("mcu") || q.contains("avenger") || cleanKeywords == "marvel"
-        val isHollywoodQuery = q.contains("hollywood") || q.contains("blockbuster") || q.contains("popular") || q.contains("best movies") || cleanKeywords == "hollywood"
+        // 1. Bollywood / Hindi Cinema
+        val isBollywood = q.contains("bollywood") || q.contains("hindi") ||
+                original.contains("bolly") || original.contains("hindi")
+        if (isBollywood) {
+            return ALL_CURATED.filter {
+                (it.language?.contains("Hindi", ignoreCase = true) == true) ||
+                it.sourceName.contains("Bollywood", ignoreCase = true) ||
+                it.sourceName.contains("Hindi", ignoreCase = true)
+            }
+        }
 
+        // 2. Tollywood / Telugu / South Indian Cinema
+        val isTollywood = q.contains("tollywood") || q.contains("telugu") ||
+                original.contains("tolly") || original.contains("telugu") ||
+                q.contains("south")
+        if (isTollywood) {
+            return ALL_CURATED.filter {
+                (it.language?.contains("Telugu", ignoreCase = true) == true) ||
+                it.sourceName.contains("Tollywood", ignoreCase = true) ||
+                it.sourceName.contains("Telugu", ignoreCase = true) ||
+                it.director.contains("Rajamouli", ignoreCase = true) ||
+                it.director.contains("Sukumar", ignoreCase = true) ||
+                it.director.contains("Prashanth Neel", ignoreCase = true)
+            }
+        }
+
+        // 3. Indian Cinema (Pan-India)
+        val isIndian = isBollywood || isTollywood || q.contains("indian") ||
+                original.contains("indian") || original.contains("o indian") ||
+                q.contains("desi") || q.contains("kollywood") || q.contains("tamil")
+        if (isIndian) {
+            return ALL_CURATED.filter {
+                it.sourceName.contains("Indian", ignoreCase = true) ||
+                it.sourceName.contains("Bollywood", ignoreCase = true) ||
+                it.sourceName.contains("Tollywood", ignoreCase = true) ||
+                it.sourceName.contains("Kollywood", ignoreCase = true) ||
+                (it.language?.contains("Hindi", ignoreCase = true) == true) ||
+                (it.language?.contains("Telugu", ignoreCase = true) == true) ||
+                (it.language?.contains("Tamil", ignoreCase = true) == true) ||
+                (it.language?.contains("Malayalam", ignoreCase = true) == true) ||
+                (it.language?.contains("Kannada", ignoreCase = true) == true)
+            }
+        }
+
+        // 4. TV Series, Web Series & Television Shows
+        val isTvOrSeries = q.contains("tv") || q.contains("series") || q.contains("web series") ||
+                q.contains("show") || original.contains("tv") || original.contains("sresies") ||
+                original.contains("resylt")
+        if (isTvOrSeries) {
+            return ALL_CURATED.filter {
+                it.contentType == EntertainmentType.TV_SERIES ||
+                it.contentType == EntertainmentType.DRAMA ||
+                it.sourceName.contains("TV", ignoreCase = true) ||
+                it.sourceName.contains("Series", ignoreCase = true) ||
+                it.sourceName.contains("HBO", ignoreCase = true) ||
+                it.sourceName.contains("Netflix", ignoreCase = true) ||
+                it.sourceName.contains("Amazon", ignoreCase = true) ||
+                it.sourceName.contains("Sony LIV", ignoreCase = true)
+            }
+        }
+
+        // 5. Marvel Cinematic Universe
+        val isMarvelQuery = q.contains("marvel") || q.contains("mcu") || q.contains("avenger") || cleanKeywords == "marvel"
         if (isMarvelQuery) {
             return ALL_CURATED.filter {
-                it.sourceName.contains("Marvel", ignoreCase = true) ||
-                it.title.contains("Avengers", ignoreCase = true) ||
-                it.title.contains("Iron Man", ignoreCase = true) ||
-                it.title.contains("Spider-Man", ignoreCase = true) ||
-                it.title.contains("Black Panther", ignoreCase = true) ||
-                it.title.contains("Thor", ignoreCase = true) ||
-                it.title.contains("Guardians of the Galaxy", ignoreCase = true) ||
-                it.title.contains("Deadpool", ignoreCase = true) ||
-                it.title.contains("Doctor Strange", ignoreCase = true) ||
-                it.title.contains("Captain America", ignoreCase = true)
+                it.contentType == EntertainmentType.MOVIE && (
+                    it.sourceName.contains("Marvel", ignoreCase = true) ||
+                    it.title.contains("Avengers", ignoreCase = true) ||
+                    it.title.contains("Iron Man", ignoreCase = true) ||
+                    it.title.contains("Spider-Man", ignoreCase = true) ||
+                    it.title.contains("Black Panther", ignoreCase = true) ||
+                    it.title.contains("Thor", ignoreCase = true) ||
+                    it.title.contains("Guardians of the Galaxy", ignoreCase = true) ||
+                    it.title.contains("Deadpool", ignoreCase = true) ||
+                    it.title.contains("Doctor Strange", ignoreCase = true) ||
+                    it.title.contains("Captain America", ignoreCase = true)
+                )
             }
         }
 
+        // 6. Hollywood & Blockbusters
+        val isHollywoodQuery = q.contains("hollywood") || q.contains("blockbuster") || q.contains("popular") || q.contains("best movies") || cleanKeywords == "hollywood"
         if (isHollywoodQuery) {
             return ALL_CURATED.filter {
-                it.sourceName.contains("Hollywood", ignoreCase = true) ||
-                it.sourceName.contains("Paramount", ignoreCase = true) ||
-                it.sourceName.contains("Universal", ignoreCase = true) ||
-                it.sourceName.contains("Warner", ignoreCase = true) ||
-                it.sourceName.contains("20th Century", ignoreCase = true) ||
-                it.director.contains("Nolan", ignoreCase = true) ||
-                it.director.contains("Spielberg", ignoreCase = true) ||
-                it.director.contains("Cameron", ignoreCase = true)
+                it.contentType == EntertainmentType.MOVIE && (
+                    it.sourceName.contains("Hollywood", ignoreCase = true) ||
+                    it.sourceName.contains("Paramount", ignoreCase = true) ||
+                    it.sourceName.contains("Universal", ignoreCase = true) ||
+                    it.sourceName.contains("Warner", ignoreCase = true) ||
+                    it.sourceName.contains("20th Century", ignoreCase = true) ||
+                    it.director.contains("Nolan", ignoreCase = true) ||
+                    it.director.contains("Spielberg", ignoreCase = true) ||
+                    it.director.contains("Cameron", ignoreCase = true)
+                )
             }
         }
 
-        // Fuzzy, typo-tolerant search across entire catalog
+        // 7. General Typo-Tolerant & Fuzzy Search across all items
         val matches = mutableListOf<DiscoveredMovie>()
         for (item in ALL_CURATED) {
             val title = item.title.lowercase()
@@ -725,16 +803,18 @@ object CuratedEntertainmentRegistry {
                     director.contains(q) || (cleanKeywords.isNotEmpty() && director.contains(cleanKeywords)) ||
                     cast.contains(q) || (cleanKeywords.isNotEmpty() && cast.contains(cleanKeywords)) ||
                     alts.contains(q) || (cleanKeywords.isNotEmpty() && alts.contains(cleanKeywords)) ||
-                    syn.contains(q) || (cleanKeywords.isNotEmpty() && syn.contains(cleanKeywords))
+                    syn.contains(q) || (cleanKeywords.isNotEmpty() && syn.contains(cleanKeywords)) ||
+                    title.contains(original) || alts.contains(original)
 
             val (score, reason) = FuzzyRelevanceRanker.scoreAndExplain(item, query)
             val titleSim = maxOf(
                 FuzzyRelevanceRanker.calculateSimilarity(title, q),
-                if (cleanKeywords.isNotEmpty()) FuzzyRelevanceRanker.calculateSimilarity(title, cleanKeywords) else 0f
+                if (cleanKeywords.isNotEmpty()) FuzzyRelevanceRanker.calculateSimilarity(title, cleanKeywords) else 0f,
+                FuzzyRelevanceRanker.calculateSimilarity(title, original)
             )
 
-            // If direct match, or high fuzzy similarity (typo tolerance), or score >= 60f
-            if (directMatch || score >= 60f || titleSim >= 0.55f) {
+            // If direct match, or high fuzzy similarity (typo tolerance), or score >= 55f
+            if (directMatch || score >= 55f || titleSim >= 0.50f) {
                 matches.add(item.copy(relevanceScore = maxOf(score, titleSim * 100f), matchReason = reason))
             }
         }

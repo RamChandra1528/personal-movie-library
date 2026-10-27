@@ -29,17 +29,26 @@ class WikipediaSearchProvider(
     )
 
     override suspend fun search(query: String): List<DiscoveredMovie> = withContext(Dispatchers.IO) {
-        val cleanQuery = query.trim()
+        val normalized = FuzzyRelevanceRanker.normalizeEntertainmentQuery(query)
+        val cleanQuery = if (normalized.isNotBlank()) normalized else query.trim()
         if (cleanQuery.isEmpty()) return@withContext emptyList()
 
         try {
-            val hasMovieWord = cleanQuery.contains("movie", ignoreCase = true) || cleanQuery.contains("film", ignoreCase = true)
-            val baseKeywords = cleanQuery
-                .replace(Regex("(?i)\\bmovies?\\b"), "")
-                .replace(Regex("(?i)\\bfilms?\\b"), "")
-                .trim()
+            val hasMovieWord = cleanQuery.contains("movie", ignoreCase = true) ||
+                    cleanQuery.contains("film", ignoreCase = true) ||
+                    cleanQuery.contains("series", ignoreCase = true) ||
+                    cleanQuery.contains("show", ignoreCase = true)
 
-            val primarySearch = if (hasMovieWord) cleanQuery else "$cleanQuery film"
+            val primarySearch = when {
+                hasMovieWord -> cleanQuery
+                cleanQuery.equals("bollywood", ignoreCase = true) -> "Hindi cinema films"
+                cleanQuery.equals("tollywood", ignoreCase = true) -> "Telugu cinema films"
+                cleanQuery.equals("kollywood", ignoreCase = true) -> "Tamil cinema films"
+                cleanQuery.equals("indian", ignoreCase = true) -> "Indian cinema films"
+                cleanQuery.equals("tv", ignoreCase = true) || cleanQuery.equals("tv series", ignoreCase = true) ||
+                        cleanQuery.equals("web series", ignoreCase = true) -> "acclaimed television series"
+                else -> "$cleanQuery film"
+            }
             val encodedSearch = URLEncoder.encode(primarySearch, "UTF-8")
             val searchUrl = "https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=$encodedSearch&srlimit=8&format=json"
 

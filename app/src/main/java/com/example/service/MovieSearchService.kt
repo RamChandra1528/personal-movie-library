@@ -102,11 +102,23 @@ class MovieSearchService(
 
         val allResults = mutableListOf<DiscoveredMovie>()
         val seenKeys = mutableSetOf<String>()
+        val normalized = FuzzyRelevanceRanker.normalizeEntertainmentQuery(clean)
         var didYouMean: String? = cachedSuggestion
+        if (didYouMean == null && normalized.isNotBlank() && !normalized.equals(clean, ignoreCase = true)) {
+            didYouMean = normalized
+        }
 
         try {
-            // First check Curated Entertainment Registry for instant, verified matching (Marvel, Hollywood, Classics)
-            val curatedMatches = if (!isYearQuery) CuratedEntertainmentRegistry.findMatching(clean) else emptyList()
+            // First check Curated Entertainment Registry for instant, verified matching (Marvel, Bollywood, Tollywood, TV Series, Hollywood)
+            val curatedMatches = if (!isYearQuery) {
+                val direct = CuratedEntertainmentRegistry.findMatching(clean)
+                if (direct.isNotEmpty()) {
+                    direct
+                } else if (normalized.isNotBlank() && !normalized.equals(clean, ignoreCase = true)) {
+                    CuratedEntertainmentRegistry.findMatching(normalized)
+                } else emptyList()
+            } else emptyList()
+
             for (item in curatedMatches) {
                 val key = "${item.title.lowercase()}_${item.releaseYear ?: 0}_${item.contentType}"
                 if (!seenKeys.contains(key)) {
@@ -139,16 +151,17 @@ class MovieSearchService(
                         }
                     }
                 } else {
+                    val effectiveQuery = if (normalized.isNotBlank()) normalized else clean
                     // Query external providers concurrently with smart type filtering
-                    val wikiTask = async { wikipediaProvider.search(clean) }
+                    val wikiTask = async { wikipediaProvider.search(effectiveQuery) }
                     val tvMazeTask = async {
                         if (filterType == null || filterType == EntertainmentType.TV_SERIES || filterType == EntertainmentType.DRAMA) {
-                            tvMazeProvider.search(clean)
+                            tvMazeProvider.search(effectiveQuery)
                         } else emptyList()
                     }
                     val animeTask = async {
-                        val isAnimeQuery = clean.contains("anime", ignoreCase = true) || filterType == EntertainmentType.ANIME
-                        if (isAnimeQuery) animeProvider.search(clean) else emptyList()
+                        val isAnimeQuery = effectiveQuery.contains("anime", ignoreCase = true) || filterType == EntertainmentType.ANIME
+                        if (isAnimeQuery) animeProvider.search(effectiveQuery) else emptyList()
                     }
                     val suggestionTask = async {
                         if (didYouMean == null && clean.length >= 3 && allResults.isEmpty()) {
