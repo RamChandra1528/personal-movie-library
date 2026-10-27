@@ -73,33 +73,46 @@ class WikipediaSearchProvider(
                 }
             }
 
-            // Only fallback to secondary search if primary search found 0 titles
-            if (titles.isEmpty() && baseKeywords.isNotEmpty() && !baseKeywords.equals(cleanQuery, ignoreCase = true)) {
-                val encodedBase = URLEncoder.encode(baseKeywords, "UTF-8")
-                val baseUrl = "https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=$encodedBase&srlimit=5&format=json"
-                val baseReq = Request.Builder().url(baseUrl).header("User-Agent", userAgent).build()
-                val baseResp = client.newCall(baseReq).execute()
-                if (baseResp.isSuccessful) {
-                    val body = baseResp.body?.string()
-                    if (body != null) {
-                        val json = JSONObject(body)
-                        val arr = json.optJSONObject("query")?.optJSONArray("search")
-                        if (arr != null) {
-                            for (i in 0 until arr.length()) {
-                                val t = arr.getJSONObject(i).optString("title")
-                                val isMeta = t.startsWith("List of", ignoreCase = true) ||
-                                        t.startsWith("Timeline of", ignoreCase = true)
-                                if (t.isNotEmpty() && !isMeta && !titles.contains(t)) {
-                                    titles.add(t)
+            // Also check OpenSearch in parallel for typo corrections and fuzzy suggestions
+            val opensearchTask = async { fetchOpenSearchSuggestions(cleanQuery) }
+
+            // If primary search found few/no titles, also try bare cleanQuery
+            if (titles.size < 2 && !cleanQuery.equals(primarySearch, ignoreCase = true)) {
+                try {
+                    val encodedBare = URLEncoder.encode(cleanQuery, "UTF-8")
+                    val bareUrl = "https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=$encodedBare&srlimit=6&format=json"
+                    val bareReq = Request.Builder().url(bareUrl).header("User-Agent", userAgent).build()
+                    val bareResp = client.newCall(bareReq).execute()
+                    if (bareResp.isSuccessful) {
+                        bareResp.body?.string()?.let { b ->
+                            val json = JSONObject(b)
+                            val arr = json.optJSONObject("query")?.optJSONArray("search")
+                            if (arr != null) {
+                                for (i in 0 until arr.length()) {
+                                    val t = arr.getJSONObject(i).optString("title")
+                                    val isMeta = t.startsWith("List of", ignoreCase = true) ||
+                                            t.startsWith("Timeline of", ignoreCase = true) ||
+                                            t.startsWith("Category:", ignoreCase = true)
+                                    if (t.isNotEmpty() && !isMeta && !titles.contains(t)) {
+                                        titles.add(t)
+                                    }
                                 }
                             }
                         }
                     }
+                } catch (ignored: Exception) {}
+            }
+
+            // Incorporate OpenSearch typo suggestions if titles list is small
+            val suggestions = try { opensearchTask.await() } catch (e: Exception) { emptyList() }
+            for (s in suggestions) {
+                if (!titles.contains(s)) {
+                    titles.add(s)
                 }
             }
 
-            // Fetch summary for top results in parallel (max 4 to reduce latency)
-            val deferred = titles.take(4).map { title ->
+            // Fetch summary for top results in parallel (take up to 6 results)
+            val deferred = titles.distinct().take(6).map { title ->
                 async {
                     fetchSummaryForTitle(title)
                 }

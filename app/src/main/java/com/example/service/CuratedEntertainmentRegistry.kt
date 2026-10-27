@@ -472,13 +472,203 @@ object CuratedEntertainmentRegistry {
             contentType = EntertainmentType.MOVIE,
             alternateTitles = listOf("Tom Hanks Forrest Gump"),
             similarTitles = listOf("Cast Away", "The Green Mile", "The Shawshank Redemption", "Rain Man")
+        ),
+        // WORLD-WIDE & ACCLAIMED INTERNATIONAL BLOCKBUSTERS
+        DiscoveredMovie(
+            title = "RRR",
+            releaseYear = 2022,
+            releaseDate = "2022-03-25",
+            posterUrl = "https://upload.wikimedia.org/wikipedia/en/d/d7/RRR_Poster.jpg",
+            backdropUrl = "https://upload.wikimedia.org/wikipedia/en/d/d7/RRR_Poster.jpg",
+            genres = listOf("Action", "Drama", "History"),
+            synopsis = "A fictitious story about two legendary revolutionaries and their journey away from home before they began fighting for their country in the 1920s.",
+            director = "S. S. Rajamouli",
+            cast = listOf("N. T. Rama Rao Jr.", "Ram Charan", "Ajay Devgn", "Alia Bhatt", "Shriya Saran"),
+            runtimeMinutes = 187,
+            language = "Telugu / Hindi",
+            externalRating = "7.8 / 10 (IMDb) | Academy Award Winner",
+            sourceUrl = "https://en.wikipedia.org/wiki/RRR_(film)",
+            sourceName = "DVV Entertainment / Indian Cinema",
+            contentType = EntertainmentType.MOVIE,
+            alternateTitles = listOf("Roudram Ranam Rudhiram", "Rise Roar Revolt", "Triple R"),
+            similarTitles = listOf("Baahubali 2: The Conclusion", "Kantara", "K.G.F: Chapter 2", "Pushpa")
+        ),
+        DiscoveredMovie(
+            title = "Dangal",
+            releaseYear = 2016,
+            releaseDate = "2016-12-23",
+            posterUrl = "https://upload.wikimedia.org/wikipedia/en/9/99/Dangal_Poster.jpg",
+            backdropUrl = "https://upload.wikimedia.org/wikipedia/en/9/99/Dangal_Poster.jpg",
+            genres = listOf("Biography", "Drama", "Sport"),
+            synopsis = "Former wrestler Mahavir Singh Phogat and his two wrestler daughters struggle towards glory at the Commonwealth Games in the face of societal oppression.",
+            director = "Nitesh Tiwari",
+            cast = listOf("Aamir Khan", "Sakshi Tanwar", "Fatima Sana Shaikh", "Sanya Malhotra"),
+            runtimeMinutes = 161,
+            language = "Hindi",
+            externalRating = "8.3 / 10 (IMDb)",
+            sourceUrl = "https://en.wikipedia.org/wiki/Dangal_(film)",
+            sourceName = "Aamir Khan Productions / Indian Cinema",
+            contentType = EntertainmentType.MOVIE,
+            alternateTitles = listOf("Wrestling Movie", "Mahavir Phogat Dangal"),
+            similarTitles = listOf("3 Idiots", "Lagaan", "Chak De! India", "Sultan")
+        ),
+        DiscoveredMovie(
+            title = "K.G.F: Chapter 2",
+            releaseYear = 2022,
+            releaseDate = "2022-04-14",
+            posterUrl = "https://upload.wikimedia.org/wikipedia/en/d/d0/K.G.F_Chapter_2.jpg",
+            backdropUrl = "https://upload.wikimedia.org/wikipedia/en/d/d0/K.G.F_Chapter_2.jpg",
+            genres = listOf("Action", "Crime", "Drama"),
+            synopsis = "In the blood-soaked Kolar Gold Fields, Rocky's name strikes fear into his foes. While his allies look up to him, the government sees him as a threat to law and order.",
+            director = "Prashanth Neel",
+            cast = listOf("Yash", "Sanjay Dutt", "Raveena Tandon", "Srinidhi Shetty", "Prakash Raj"),
+            runtimeMinutes = 168,
+            language = "Kannada / Hindi",
+            externalRating = "8.2 / 10 (IMDb)",
+            sourceUrl = "https://en.wikipedia.org/wiki/K.G.F:_Chapter_2",
+            sourceName = "Hombale Films / Indian Cinema",
+            contentType = EntertainmentType.MOVIE,
+            alternateTitles = listOf("KGF 2", "KGF Chapter 2", "Rocky Bhai KGF"),
+            similarTitles = listOf("K.G.F: Chapter 1", "Salaar", "Pushpa", "Kantara")
+        ),
+        DiscoveredMovie(
+            title = "Baahubali 2: The Conclusion",
+            releaseYear = 2017,
+            releaseDate = "2017-04-28",
+            posterUrl = "https://upload.wikimedia.org/wikipedia/en/f/f9/Baahubali_the_Conclusion.jpg",
+            backdropUrl = "https://upload.wikimedia.org/wikipedia/en/f/f9/Baahubali_the_Conclusion.jpg",
+            genres = listOf("Action", "Drama", "Fantasy"),
+            synopsis = "When Shiva, the son of Bahubali, learns about his heritage, he begins to look for answers. His story is juxtaposed with past events that unfolded in the Mahishmati Kingdom.",
+            director = "S. S. Rajamouli",
+            cast = listOf("Prabhas", "Rana Daggubati", "Anushka Shetty", "Tamannaah", "Ramya Krishna", "Sathyaraj"),
+            runtimeMinutes = 167,
+            language = "Telugu / Tamil",
+            externalRating = "8.2 / 10 (IMDb)",
+            sourceUrl = "https://en.wikipedia.org/wiki/Baahubali_2:_The_Conclusion",
+            sourceName = "Arka Media Works / Indian Cinema",
+            contentType = EntertainmentType.MOVIE,
+            alternateTitles = listOf("Bahubali 2", "Baahubali 2", "Bahubali Conclusion"),
+            similarTitles = listOf("Baahubali: The Beginning", "RRR", "Magadheera", "Ponniyin Selvan")
+        ),
+        DiscoveredMovie(
+            title = "3 Idiots",
+            releaseYear = 2009,
+            releaseDate = "2009-12-25",
+            posterUrl = "https://upload.wikimedia.org/wikipedia/en/d/df/3_idiots_poster.jpg",
+            backdropUrl = "https://upload.wikimedia.org/wikipedia/en/d/df/3_idiots_poster.jpg",
+            genres = listOf("Comedy", "Drama"),
+            synopsis = "Two friends are searching for their long lost companion. They revisit their college days and recall the memories of their friend who inspired them to think differently.",
+            director = "Rajkumar Hirani",
+            cast = listOf("Aamir Khan", "R. Madhavan", "Sharman Joshi", "Kareena Kapoor", "Boman Irani"),
+            runtimeMinutes = 170,
+            language = "Hindi",
+            externalRating = "8.4 / 10 (IMDb)",
+            sourceUrl = "https://en.wikipedia.org/wiki/3_Idiots",
+            sourceName = "Vinod Chopra Films / Indian Cinema",
+            contentType = EntertainmentType.MOVIE,
+            alternateTitles = listOf("Three Idiots", "All Izz Well"),
+            similarTitles = listOf("Dangal", "PK", "Taare Zameen Par", "Munna Bhai M.B.B.S.")
+        ),
+        DiscoveredMovie(
+            title = "Dune: Part Two",
+            releaseYear = 2024,
+            releaseDate = "2024-03-01",
+            posterUrl = "https://upload.wikimedia.org/wikipedia/en/5/52/Dune_Part_Two_poster.jpeg",
+            backdropUrl = "https://upload.wikimedia.org/wikipedia/en/5/52/Dune_Part_Two_poster.jpeg",
+            genres = listOf("Sci-Fi", "Adventure", "Action"),
+            synopsis = "Paul Atreides unites with Chani and the Fremen while seeking revenge against the conspirators who destroyed his family.",
+            director = "Denis Villeneuve",
+            cast = listOf("Timothée Chalamet", "Zendaya", "Rebecca Ferguson", "Javier Bardem", "Austin Butler"),
+            runtimeMinutes = 166,
+            language = "English",
+            externalRating = "8.5 / 10 (IMDb)",
+            sourceUrl = "https://en.wikipedia.org/wiki/Dune:_Part_Two",
+            sourceName = "Warner Bros. / Legendary Pictures",
+            contentType = EntertainmentType.MOVIE,
+            alternateTitles = listOf("Dune 2", "Dune Part 2", "Dune Part Two"),
+            similarTitles = listOf("Dune", "Blade Runner 2049", "Interstellar", "Oppenheimer")
+        ),
+        DiscoveredMovie(
+            title = "Barbie",
+            releaseYear = 2023,
+            releaseDate = "2023-07-21",
+            posterUrl = "https://upload.wikimedia.org/wikipedia/en/0/0b/Barbie_2023_poster.jpg",
+            backdropUrl = "https://upload.wikimedia.org/wikipedia/en/0/0b/Barbie_2023_poster.jpg",
+            genres = listOf("Comedy", "Adventure", "Fantasy"),
+            synopsis = "Barbie and Ken are having the time of their lives in the colorful and seemingly perfect world of Barbie Land. However, when they get a chance to go to the real world, they soon discover the joys and perils of living among humans.",
+            director = "Greta Gerwig",
+            cast = listOf("Margot Robbie", "Ryan Gosling", "America Ferrera", "Kate McKinnon", "Will Ferrell"),
+            runtimeMinutes = 114,
+            language = "English",
+            externalRating = "6.8 / 10 (IMDb) | Global Box Office #1 2023",
+            sourceUrl = "https://en.wikipedia.org/wiki/Barbie_(film)",
+            sourceName = "Warner Bros. Pictures",
+            contentType = EntertainmentType.MOVIE,
+            alternateTitles = listOf("Barbie The Movie", "Barbenheimer"),
+            similarTitles = listOf("Oppenheimer", "Little Women", "La La Land")
+        ),
+        DiscoveredMovie(
+            title = "The Shawshank Redemption",
+            releaseYear = 1994,
+            releaseDate = "1994-09-23",
+            posterUrl = "https://upload.wikimedia.org/wikipedia/en/8/81/ShawshankRedemptionMoviePoster.jpg",
+            backdropUrl = "https://upload.wikimedia.org/wikipedia/en/8/81/ShawshankRedemptionMoviePoster.jpg",
+            genres = listOf("Drama", "Crime"),
+            synopsis = "Over the course of several years, two convicts form a friendship, seeking solace and eventual redemption through basic compassion.",
+            director = "Frank Darabont",
+            cast = listOf("Tim Robbins", "Morgan Freeman", "Bob Gunton", "William Sadler"),
+            runtimeMinutes = 142,
+            language = "English",
+            externalRating = "9.3 / 10 (IMDb #1 Ranked)",
+            sourceUrl = "https://en.wikipedia.org/wiki/The_Shawshank_Redemption",
+            sourceName = "Columbia Pictures / Castle Rock",
+            contentType = EntertainmentType.MOVIE,
+            alternateTitles = listOf("Shawshank", "Rita Hayworth and Shawshank Redemption"),
+            similarTitles = listOf("The Green Mile", "The Godfather", "Fight Club", "Forrest Gump")
+        ),
+        DiscoveredMovie(
+            title = "Parasite",
+            releaseYear = 2019,
+            releaseDate = "2019-05-30",
+            posterUrl = "https://upload.wikimedia.org/wikipedia/en/5/53/Parasite_%282019_film%29.png",
+            backdropUrl = "https://upload.wikimedia.org/wikipedia/en/5/53/Parasite_%282019_film%29.png",
+            genres = listOf("Drama", "Thriller", "Comedy"),
+            synopsis = "Greed and class discrimination threaten the newly formed symbiotic relationship between the wealthy Park family and the destitute Kim clan.",
+            director = "Bong Joon-ho",
+            cast = listOf("Song Kang-ho", "Lee Sun-kyun", "Cho Yeo-jeong", "Choi Woo-shik"),
+            runtimeMinutes = 132,
+            language = "Korean",
+            externalRating = "8.5 / 10 (IMDb) | Academy Award for Best Picture",
+            sourceUrl = "https://en.wikipedia.org/wiki/Parasite_(2019_film)",
+            sourceName = "CJ Entertainment / World Cinema",
+            contentType = EntertainmentType.MOVIE,
+            alternateTitles = listOf("Gisaengchung", "Parasite Movie"),
+            similarTitles = listOf("Memories of Murder", "Snowpiercer", "Oldboy", "The Host")
+        ),
+        DiscoveredMovie(
+            title = "Spirited Away",
+            releaseYear = 2001,
+            releaseDate = "2001-07-20",
+            posterUrl = "https://upload.wikimedia.org/wikipedia/en/d/db/Spirited_Away_Japanese_poster.png",
+            backdropUrl = "https://upload.wikimedia.org/wikipedia/en/d/db/Spirited_Away_Japanese_poster.png",
+            genres = listOf("Animation", "Adventure", "Fantasy"),
+            synopsis = "During her family's move to the suburbs, a sullen 10-year-old girl wanders into a world ruled by gods, witches, and spirits, and where humans are changed into beasts.",
+            director = "Hayao Miyazaki",
+            cast = listOf("Rumi Hiiragi", "Miyu Irino", "Mari Natsuki", "Takashi Naito"),
+            runtimeMinutes = 125,
+            language = "Japanese",
+            externalRating = "8.6 / 10 (IMDb) | Academy Award Winner",
+            sourceUrl = "https://en.wikipedia.org/wiki/Spirited_Away",
+            sourceName = "Studio Ghibli / Anime Masterpiece",
+            contentType = EntertainmentType.ANIME,
+            alternateTitles = listOf("Sen to Chihiro no Kamikakushi", "Miyazaki Spirited Away"),
+            similarTitles = listOf("Princess Mononoke", "Howl's Moving Castle", "My Neighbor Totoro", "Your Name")
         )
     )
 
     /**
-     * Search the curated entertainment registry.
-     * Matches keywords, titles, franchises (Marvel, MCU, Hollywood, DC),
-     * directors (Nolan, Spielberg, Cameron), cast, and genres.
+     * Search the curated entertainment registry with full fuzzy typo-tolerance,
+     * franchise detection, and relevance scoring.
      */
     fun findMatching(query: String): List<DiscoveredMovie> {
         val q = query.trim().lowercase()
@@ -522,19 +712,33 @@ object CuratedEntertainmentRegistry {
             }
         }
 
-        // Generic query search across title, cast, director, synopsis, alternate titles
-        return ALL_CURATED.filter { item ->
+        // Fuzzy, typo-tolerant search across entire catalog
+        val matches = mutableListOf<DiscoveredMovie>()
+        for (item in ALL_CURATED) {
             val title = item.title.lowercase()
             val director = item.director.lowercase()
             val cast = item.cast.joinToString(" ").lowercase()
             val syn = item.synopsis.lowercase()
             val alts = item.alternateTitles.joinToString(" ").lowercase()
 
-            title.contains(q) || title.contains(cleanKeywords) ||
-            director.contains(q) || director.contains(cleanKeywords) ||
-            cast.contains(q) || cast.contains(cleanKeywords) ||
-            alts.contains(q) || alts.contains(cleanKeywords) ||
-            syn.contains(q) || syn.contains(cleanKeywords)
+            val directMatch = title.contains(q) || (cleanKeywords.isNotEmpty() && title.contains(cleanKeywords)) ||
+                    director.contains(q) || (cleanKeywords.isNotEmpty() && director.contains(cleanKeywords)) ||
+                    cast.contains(q) || (cleanKeywords.isNotEmpty() && cast.contains(cleanKeywords)) ||
+                    alts.contains(q) || (cleanKeywords.isNotEmpty() && alts.contains(cleanKeywords)) ||
+                    syn.contains(q) || (cleanKeywords.isNotEmpty() && syn.contains(cleanKeywords))
+
+            val (score, reason) = FuzzyRelevanceRanker.scoreAndExplain(item, query)
+            val titleSim = maxOf(
+                FuzzyRelevanceRanker.calculateSimilarity(title, q),
+                if (cleanKeywords.isNotEmpty()) FuzzyRelevanceRanker.calculateSimilarity(title, cleanKeywords) else 0f
+            )
+
+            // If direct match, or high fuzzy similarity (typo tolerance), or score >= 60f
+            if (directMatch || score >= 60f || titleSim >= 0.55f) {
+                matches.add(item.copy(relevanceScore = maxOf(score, titleSim * 100f), matchReason = reason))
+            }
         }
+
+        return matches.sortedByDescending { it.relevanceScore }
     }
 }

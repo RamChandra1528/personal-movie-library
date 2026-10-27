@@ -79,7 +79,39 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
     private val _isSigningIn = MutableStateFlow(false)
     val isSigningIn: StateFlow<Boolean> = _isSigningIn.asStateFlow()
 
+    private val _isAppInitializing = MutableStateFlow(true)
+    val isAppInitializing: StateFlow<Boolean> = _isAppInitializing.asStateFlow()
+
+    private val _loadingStatusMessage = MutableStateFlow("Initializing CineVault...")
+    val loadingStatusMessage: StateFlow<String> = _loadingStatusMessage.asStateFlow()
+
     init {
+        // App launch & session restoration flow
+        viewModelScope.launch {
+            _loadingStatusMessage.value = "Starting CineVault..."
+            val startTime = System.currentTimeMillis()
+            try {
+                // Check if an existing session is present
+                val user = authManager.currentUser.value
+                if (user != null) {
+                    _loadingStatusMessage.value = "Restoring cloud session & vault..."
+                    syncRepository.startSync(user.uid)
+                    delay(350)
+                } else {
+                    _loadingStatusMessage.value = "Preparing your personal library..."
+                }
+            } catch (_: Exception) {
+                // Graceful fallback
+            }
+
+            // Ensure smooth visual experience without flicker or sudden transitions (minimum 850ms)
+            val elapsed = System.currentTimeMillis() - startTime
+            if (elapsed < 850L) {
+                delay(850L - elapsed)
+            }
+            _isAppInitializing.value = false
+        }
+
         // Listen for authentication changes to start/stop cloud synchronization
         viewModelScope.launch {
             authManager.currentUser.collect { user ->

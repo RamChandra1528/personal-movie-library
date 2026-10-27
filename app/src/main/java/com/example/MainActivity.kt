@@ -27,6 +27,9 @@ import com.example.ui.screens.MovieDetailsScreen
 import com.example.ui.screens.StatsScreen
 import androidx.activity.compose.BackHandler
 import com.example.ui.screens.AccountSyncDialog
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
+import com.example.ui.screens.AppLoadingScreen
 import com.example.ui.theme.CineVaultTheme
 
 class MainActivity : ComponentActivity() {
@@ -39,7 +42,20 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             CineVaultTheme {
-                CineVaultApp(viewModel = viewModel)
+                val isInitializing by viewModel.isAppInitializing.collectAsStateWithLifecycle()
+                val statusMessage by viewModel.loadingStatusMessage.collectAsStateWithLifecycle()
+
+                Crossfade(
+                    targetState = isInitializing,
+                    animationSpec = tween(durationMillis = 400),
+                    label = "app_launch_crossfade"
+                ) { initializing ->
+                    if (initializing) {
+                        AppLoadingScreen(statusMessage = statusMessage)
+                    } else {
+                        CineVaultApp(viewModel = viewModel)
+                    }
+                }
             }
         }
     }

@@ -116,8 +116,8 @@ class MovieSearchService(
                 }
             }
 
-            // If we have strong curated matches, use a fast 2.0s network budget; otherwise 3.5s max
-            val networkTimeoutMs = if (allResults.size >= 4) 2000L else 3500L
+            // If we have strong curated matches, use a fast 2.5s network budget; otherwise 6.5s max to allow deep worldwide results
+            val networkTimeoutMs = if (allResults.size >= 4) 2500L else 6500L
 
             withTimeoutOrNull(networkTimeoutMs) {
                 if (isYearQuery && targetYear != null) {
