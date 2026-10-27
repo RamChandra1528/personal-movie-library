@@ -46,6 +46,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
@@ -73,6 +74,7 @@ import com.example.R
 import com.example.data.MovieEntity
 import com.example.data.WatchStatus
 import com.example.ui.SortOrder
+import com.example.ui.components.CineVaultBottomBar
 import com.example.ui.components.CineVaultTopBar
 import com.example.ui.components.MovieCard
 import com.example.ui.theme.CineCardBorder
@@ -107,6 +109,7 @@ fun DashboardScreen(
     onOpenAddDialog: () -> Unit,
     onOpenGlobalSearch: () -> Unit,
     onOpenStats: () -> Unit,
+    onSearchGlobal: (String) -> Unit = {},
     currentUser: com.google.firebase.auth.FirebaseUser? = null,
     isSyncing: Boolean = false,
     onOpenAccount: () -> Unit = {},
@@ -122,11 +125,8 @@ fun DashboardScreen(
         color = CineDarkBg
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // CineVault Top Bar
+            // CineVault Top Bar: Keeps the logo in its current top position
             CineVaultTopBar(
-                onOpenGlobalSearch = onOpenGlobalSearch,
-                onOpenStats = onOpenStats,
-                onAddNewMovie = onOpenAddDialog,
                 currentUser = currentUser,
                 isSyncing = isSyncing,
                 onOpenAccount = onOpenAccount
@@ -187,9 +187,10 @@ fun DashboardScreen(
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(minSize = 155.dp),
                 modifier = Modifier
-                    .fillMaxSize()
+                    .weight(1f)
+                    .fillMaxWidth()
                     .padding(horizontal = 16.dp),
-                contentPadding = PaddingValues(bottom = 32.dp),
+                contentPadding = PaddingValues(bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -387,7 +388,7 @@ fun DashboardScreen(
                                         fontSize = 11.sp,
                                         modifier = Modifier.align(Alignment.CenterVertically)
                                     )
-                                    listOf("Interstellar", "Inception", "The Dark Knight", "Spirited Away", "Blade Runner 2049").forEach { sample ->
+                                    listOf("Marvel Movies", "Hollywood Movies", "Avengers", "Inception", "Interstellar", "Spider-Man").forEach { sample ->
                                         Surface(
                                             shape = RoundedCornerShape(12.dp),
                                             color = CineSurfaceVariant,
@@ -414,7 +415,7 @@ fun DashboardScreen(
                         OutlinedTextField(
                             value = searchQuery,
                             onValueChange = onSearchQueryChanged,
-                            placeholder = { Text("Filter your vault collection...") },
+                            placeholder = { Text("Search your vault (or tap below for global)...") },
                             modifier = Modifier
                                 .testTag("collection_search_bar")
                                 .fillMaxWidth(),
@@ -444,6 +445,48 @@ fun DashboardScreen(
                                 unfocusedTextColor = CineTextPrimary
                             )
                         )
+
+                        // 1-Tap Global Search Banner when query entered
+                        AnimatedVisibility(visible = searchQuery.isNotBlank()) {
+                            Surface(
+                                modifier = Modifier
+                                    .testTag("search_global_shortcut_banner")
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable { onSearchGlobal(searchQuery) },
+                                color = CineSurfaceVariant,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, CineCyan.copy(alpha = 0.6f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                        Icon(
+                                            imageVector = Icons.Default.Search,
+                                            contentDescription = null,
+                                            tint = CineCyan,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "Search Global Database for \"$searchQuery\"",
+                                            color = CineTextPrimary,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                    Text(
+                                        text = "Search Live 🌐",
+                                        color = CineGold,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                            }
+                        }
 
                         Spacer(modifier = Modifier.height(10.dp))
 
@@ -609,33 +652,80 @@ fun DashboardScreen(
                                     modifier = Modifier.size(54.dp)
                                 )
                                 Spacer(modifier = Modifier.height(12.dp))
-                                Text(
-                                    text = if (totalMovieCount == 0) "Your CineVault is Empty" else "No Movies Match Filters",
-                                    color = CineTextPrimary,
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = if (totalMovieCount == 0)
-                                        "Type a movie title above and click Save to automatically discover its poster and metadata."
-                                    else
-                                        "Try adjusting your search query, status, or genre filters.",
-                                    color = CineTextSecondary,
-                                    fontSize = 12.sp,
-                                    textAlign = TextAlign.Center
-                                )
-
-                                if (totalMovieCount == 0) {
+                                if (searchQuery.isNotBlank()) {
+                                    Text(
+                                        text = "No Saved Movies Match \"$searchQuery\"",
+                                        color = CineTextPrimary,
+                                        fontSize = 17.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        textAlign = TextAlign.Center
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = "Can't find it in your saved vault? Discover Marvel, Hollywood, and global movies across public databases:",
+                                        color = CineTextSecondary,
+                                        fontSize = 12.sp,
+                                        textAlign = TextAlign.Center
+                                    )
                                     Spacer(modifier = Modifier.height(16.dp))
                                     Button(
-                                        onClick = onOpenAddDialog,
+                                        onClick = { onSearchGlobal(searchQuery) },
+                                        modifier = Modifier.testTag("empty_state_global_search_button"),
                                         colors = ButtonDefaults.buttonColors(
                                             containerColor = CineGold,
                                             contentColor = CineDarkBg
-                                        )
+                                        ),
+                                        shape = RoundedCornerShape(12.dp)
                                     ) {
-                                        Text("Search & Add Your First Movie", fontWeight = FontWeight.Bold)
+                                        Icon(
+                                            imageVector = Icons.Default.Search,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Search Global Database for \"$searchQuery\"", fontWeight = FontWeight.Bold)
+                                    }
+                                } else {
+                                    Text(
+                                        text = if (totalMovieCount == 0) "Your CineVault is Empty" else "No Movies Match Filters",
+                                        color = CineTextPrimary,
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = if (totalMovieCount == 0)
+                                            "Search for Marvel movies, Hollywood blockbusters, or any title above to start your collection."
+                                        else
+                                            "Try adjusting your status or genre filters.",
+                                        color = CineTextSecondary,
+                                        fontSize = 12.sp,
+                                        textAlign = TextAlign.Center
+                                    )
+
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Button(
+                                            onClick = onOpenAddDialog,
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = CineGold,
+                                                contentColor = CineDarkBg
+                                            ),
+                                            shape = RoundedCornerShape(10.dp)
+                                        ) {
+                                            Text("Search & Add", fontWeight = FontWeight.Bold)
+                                        }
+
+                                        OutlinedButton(
+                                            onClick = onOpenGlobalSearch,
+                                            colors = ButtonDefaults.outlinedButtonColors(
+                                                contentColor = CineCyan
+                                            ),
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, CineCyan),
+                                            shape = RoundedCornerShape(10.dp)
+                                        ) {
+                                            Text("Explore All 🌐")
+                                        }
                                     }
                                 }
                             }
@@ -652,6 +742,16 @@ fun DashboardScreen(
                     }
                 }
             }
+
+            // CineVault Bottom Bar: Places all other header elements at the bottom
+            CineVaultBottomBar(
+                onOpenGlobalSearch = onOpenGlobalSearch,
+                onOpenStats = onOpenStats,
+                onAddNewMovie = onOpenAddDialog,
+                onOpenAccount = onOpenAccount,
+                currentUser = currentUser,
+                isSyncing = isSyncing
+            )
         }
     }
 }

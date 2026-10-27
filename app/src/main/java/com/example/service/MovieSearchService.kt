@@ -122,7 +122,18 @@ class MovieSearchService(
                         }
                     }
                 } else {
-                    // GLOBAL KEYWORD / TITLE / ACTOR / GENRE SEARCH
+                    // First check Curated Entertainment Registry for instant, verified matching (Marvel, Hollywood, Classics)
+                    val curatedMatches = CuratedEntertainmentRegistry.findMatching(clean)
+                    for (item in curatedMatches) {
+                        val key = "${item.title.lowercase()}_${item.releaseYear ?: 0}_${item.contentType}"
+                        if (!seenKeys.contains(key)) {
+                            seenKeys.add(key)
+                            val (score, reason) = FuzzyRelevanceRanker.scoreAndExplain(item, clean)
+                            allResults.add(item.copy(relevanceScore = maxOf(score, 90f), matchReason = reason))
+                        }
+                    }
+
+                    // Query real-time providers concurrently
                     val wikiTask = async { wikipediaProvider.search(clean) }
                     val tvMazeTask = async { tvMazeProvider.search(clean) }
                     val animeTask = async { animeProvider.search(clean) }
@@ -132,10 +143,10 @@ class MovieSearchService(
                         } else null
                     }
 
-                    val wikiResults = wikiTask.await()
-                    val tvResults = tvMazeTask.await()
-                    val animeResults = animeTask.await()
-                    val fetchedSuggestion = suggestionTask.await()
+                    val wikiResults = try { wikiTask.await() } catch (e: Exception) { emptyList() }
+                    val tvResults = try { tvMazeTask.await() } catch (e: Exception) { emptyList() }
+                    val animeResults = try { animeTask.await() } catch (e: Exception) { emptyList() }
+                    val fetchedSuggestion = try { suggestionTask.await() } catch (e: Exception) { null }
 
                     if (fetchedSuggestion != null && !fetchedSuggestion.equals(clean, ignoreCase = true)) {
                         didYouMean = fetchedSuggestion
@@ -146,7 +157,6 @@ class MovieSearchService(
                         val key = "${item.title.lowercase()}_${item.releaseYear ?: 0}_${item.contentType}"
                         if (!seenKeys.contains(key)) {
                             seenKeys.add(key)
-                            // Score with FuzzyRelevanceRanker
                             val (score, reason) = FuzzyRelevanceRanker.scoreAndExplain(item, clean)
                             allResults.add(item.copy(relevanceScore = score, matchReason = reason))
                         }
@@ -155,6 +165,14 @@ class MovieSearchService(
             }
         } catch (e: Exception) {
             e.printStackTrace()
+            // Resilient fallback: ensure curated results are preserved even on timeout or error
+            if (allResults.isEmpty()) {
+                val fallbackMatches = CuratedEntertainmentRegistry.findMatching(clean)
+                for (item in fallbackMatches) {
+                    val (score, reason) = FuzzyRelevanceRanker.scoreAndExplain(item, clean)
+                    allResults.add(item.copy(relevanceScore = score, matchReason = reason))
+                }
+            }
         }
 
         // Apply Entertainment Type Filter if selected

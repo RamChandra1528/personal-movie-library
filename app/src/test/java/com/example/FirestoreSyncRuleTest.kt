@@ -5,6 +5,7 @@ import com.example.data.CloudMovie
 import com.example.data.EntertainmentType
 import com.example.data.WatchStatus
 import com.google.firebase.Timestamp
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.test.runTest
@@ -70,8 +71,8 @@ class FirestoreSyncRuleTest : FirestoreEmulatorTestBase() {
       "watchStatus" to WatchStatus.COMPLETED,
       "contentType" to EntertainmentType.MOVIE,
       "isFavorite" to true,
-      "createdAt" to Timestamp.now(),
-      "updatedAt" to Timestamp.now()
+      "createdAt" to FieldValue.serverTimestamp(),
+      "updatedAt" to FieldValue.serverTimestamp()
     )
 
     movieDoc.set(writeData).await()
@@ -95,8 +96,8 @@ class FirestoreSyncRuleTest : FirestoreEmulatorTestBase() {
             "title" to "Over 5 Stars",
             "userId" to aliceUid,
             "personalRating" to 9.5, // exceeds 5.0 max
-            "createdAt" to Timestamp.now(),
-            "updatedAt" to Timestamp.now()
+            "createdAt" to FieldValue.serverTimestamp(),
+            "updatedAt" to FieldValue.serverTimestamp()
           )
         ).await()
       fail("Expected PERMISSION_DENIED for invalid movie rating")

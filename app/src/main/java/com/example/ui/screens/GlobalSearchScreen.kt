@@ -504,7 +504,10 @@ fun GlobalSearchScreen(
                         .weight(1f),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(24.dp)
+                    ) {
                         Icon(
                             imageVector = Icons.Default.Language,
                             contentDescription = null,
@@ -520,10 +523,57 @@ fun GlobalSearchScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Search across 100,000+ movies, web series, anime, & dramas",
+                            text = "Search across Marvel, Hollywood blockbusters, anime, & dramas",
                             color = CineTextSecondary,
                             fontSize = 12.sp
                         )
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        Text(
+                            text = "Popular Categories & Franchises:",
+                            color = CineGold,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        FlowRow(
+                            horizontalArrangement = Arrangement.Center,
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            listOf(
+                                "Marvel Movies",
+                                "Hollywood Movies",
+                                "Avengers",
+                                "Spider-Man",
+                                "Inception",
+                                "The Dark Knight",
+                                "Interstellar",
+                                "Titanic"
+                            ).forEach { topic ->
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = CineSurfaceVariant,
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, CineCyan.copy(alpha = 0.4f)),
+                                    modifier = Modifier
+                                        .padding(horizontal = 4.dp)
+                                        .clickable {
+                                            onQueryChanged(topic)
+                                            onSearchSubmitted(topic)
+                                        }
+                                ) {
+                                    Text(
+                                        text = topic,
+                                        color = CineTextPrimary,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }

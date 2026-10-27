@@ -1,6 +1,7 @@
 package com.example.ui.components
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -27,12 +29,16 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import com.example.ui.theme.CineGreen
-import com.example.ui.theme.CineSurfaceVariant
-import com.google.firebase.auth.FirebaseUser
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.example.R
+import com.example.ui.theme.CineCardBorder
+import com.example.ui.theme.CineGreen
+import com.example.ui.theme.CineSurfaceVariant
+import com.google.firebase.auth.FirebaseUser
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -53,8 +59,8 @@ import com.example.ui.theme.CineTextPrimary
 import com.example.ui.theme.CineTextSecondary
 
 /**
- * Custom CineVault Vector Logo:
- * Draws an artistic film frame surrounding a secure vault combination lock dial.
+ * Official CineVault / Personal Movie Library Badge Logo.
+ * Displays the user's custom cinema reel and clapperboard badge.
  */
 @Composable
 fun CineVaultLogo(
@@ -65,100 +71,40 @@ fun CineVaultLogo(
         modifier = modifier
             .testTag("cinevault_logo")
             .size(sizeDp.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(Color(0xFF1E2538), Color(0xFF10141E))
-                )
-            )
+            .clip(CircleShape)
+            .background(Color(0xFF10141E))
             .border(
-                1.dp,
-                Brush.linearGradient(listOf(CineGold, CineCyan)),
-                RoundedCornerShape(10.dp)
+                1.5.dp,
+                Brush.linearGradient(listOf(CineGold, CineGoldBright)),
+                CircleShape
             ),
         contentAlignment = Alignment.Center
     ) {
-        Canvas(modifier = Modifier.size((sizeDp * 0.72f).dp)) {
-            val w = size.width
-            val h = size.height
-
-            // Outer film reel frame
-            drawRoundRect(
-                color = CineGold,
-                size = Size(w, h),
-                cornerRadius = CornerRadius(6f, 6f),
-                style = Stroke(width = 3.5f)
-            )
-
-            // Film perforation sprocket holes on left and right
-            val sprocW = 3.5f
-            val sprocH = 4.5f
-            for (i in 0..3) {
-                val yOffset = h * 0.15f + i * (h * 0.22f)
-                // Left perforation
-                drawRect(
-                    color = CineCyan,
-                    topLeft = Offset(2f, yOffset),
-                    size = Size(sprocW, sprocH)
-                )
-                // Right perforation
-                drawRect(
-                    color = CineCyan,
-                    topLeft = Offset(w - sprocW - 2f, yOffset),
-                    size = Size(sprocW, sprocH)
-                )
-            }
-
-            // Central Vault Dial Ring
-            val center = Offset(w / 2f, h / 2f)
-            val dialRadius = w * 0.28f
-            drawCircle(
-                color = CineGoldBright,
-                center = center,
-                radius = dialRadius,
-                style = Stroke(width = 3f)
-            )
-
-            // Vault dial tick notches
-            for (angle in 0 until 360 step 45) {
-                val rad = Math.toRadians(angle.toDouble())
-                val innerR = dialRadius - 3.5f
-                val outerR = dialRadius + 2f
-                val start = Offset(
-                    center.x + (innerR * Math.cos(rad)).toFloat(),
-                    center.y + (innerR * Math.sin(rad)).toFloat()
-                )
-                val end = Offset(
-                    center.x + (outerR * Math.cos(rad)).toFloat(),
-                    center.y + (outerR * Math.sin(rad)).toFloat()
-                )
-                drawLine(
-                    color = CineCyan,
-                    start = start,
-                    end = end,
-                    strokeWidth = 2f
-                )
-            }
-
-            // Center Vault Knob
-            drawCircle(
-                color = CineCyan,
-                center = center,
-                radius = dialRadius * 0.38f
-            )
-        }
+        Image(
+            painter = painterResource(id = R.drawable.app_logo),
+            contentDescription = "Personal Movie Library Logo",
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(CircleShape),
+            contentScale = ContentScale.Crop
+        )
     }
 }
 
+/**
+ * CineVault Top Bar:
+ * Keeps the official Personal Movie Library logo and branding in its current top position.
+ */
 @Composable
 fun CineVaultTopBar(
-    onOpenGlobalSearch: () -> Unit,
-    onOpenStats: () -> Unit,
-    onAddNewMovie: () -> Unit,
     modifier: Modifier = Modifier,
     currentUser: FirebaseUser? = null,
     isSyncing: Boolean = false,
-    onOpenAccount: () -> Unit = {}
+    onOpenAccount: () -> Unit = {},
+    // Legacy parameters for backward compatibility
+    onOpenGlobalSearch: () -> Unit = {},
+    onOpenStats: () -> Unit = {},
+    onAddNewMovie: () -> Unit = {}
 ) {
     Surface(
         modifier = modifier
@@ -170,9 +116,9 @@ fun CineVaultTopBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 10.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.Start
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -180,22 +126,22 @@ fun CineVaultTopBar(
                     .weight(1f)
                     .clickable { onOpenAccount() }
             ) {
-                CineVaultLogo(sizeDp = 38)
-                Spacer(modifier = Modifier.width(10.dp))
+                CineVaultLogo(sizeDp = 42)
+                Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = "CINE",
                             color = CineTextPrimary,
                             fontWeight = FontWeight.ExtraBold,
-                            fontSize = 19.sp,
+                            fontSize = 20.sp,
                             letterSpacing = 1.sp
                         )
                         Text(
                             text = "VAULT",
                             color = CineGold,
                             fontWeight = FontWeight.ExtraBold,
-                            fontSize = 19.sp,
+                            fontSize = 20.sp,
                             letterSpacing = 1.sp
                         )
                     }
@@ -207,110 +153,138 @@ fun CineVaultTopBar(
                                     .clip(CircleShape)
                                     .background(if (isSyncing) CineGold else CineGreen)
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(5.dp))
                             Text(
-                                text = if (isSyncing) "Syncing..." else "Cloud Active",
+                                text = if (isSyncing) "Syncing..." else "Cloud Active (${currentUser.displayName ?: currentUser.email?.substringBefore("@") ?: "User"})",
                                 color = if (isSyncing) CineGold else CineGreen,
-                                fontSize = 10.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Medium
                             )
                         } else {
                             Text(
-                                text = "Global Entertainment",
+                                text = "Personal Movie Library",
                                 color = CineGold,
-                                fontSize = 10.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Medium
                             )
                         }
                     }
                 }
             }
+        }
+    }
+}
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // Account / Cloud Sync Button
-                IconButton(
-                    onClick = onOpenAccount,
-                    modifier = Modifier
-                        .testTag("account_sync_top_button")
-                        .size(38.dp)
-                        .clip(CircleShape)
-                        .background(if (currentUser != null) CineSurfaceVariant else CineSurface)
-                        .border(
-                            1.dp,
-                            if (currentUser != null) CineGreen.copy(alpha = 0.5f) else Color.Transparent,
-                            CircleShape
-                        )
-                ) {
-                    if (currentUser != null) {
-                        Text(
-                            text = (currentUser.displayName ?: currentUser.email ?: "U").take(1).uppercase(),
-                            color = CineGold,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.CloudSync,
-                            contentDescription = "Cloud Backup & Sync",
-                            tint = CineGold,
-                            modifier = Modifier.size(19.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(6.dp))
-
-                IconButton(
-                    onClick = onOpenGlobalSearch,
-                    modifier = Modifier
-                        .testTag("global_search_top_button")
-                        .size(38.dp)
-                        .clip(CircleShape)
-                        .background(CineSurface)
-                ) {
+/**
+ * CineVault Bottom Bar:
+ * Houses the other header elements (Account / Cloud Sync, Global Search, Stats, and Add Movie)
+ * at the bottom of the screen, preserving their original functionality, styling, and test tags.
+ */
+@Composable
+fun CineVaultBottomBar(
+    onOpenGlobalSearch: () -> Unit,
+    onOpenStats: () -> Unit,
+    onAddNewMovie: () -> Unit,
+    onOpenAccount: () -> Unit,
+    modifier: Modifier = Modifier,
+    currentUser: FirebaseUser? = null,
+    isSyncing: Boolean = false
+) {
+    Surface(
+        modifier = modifier
+            .testTag("cinevault_bottom_bar")
+            .fillMaxWidth(),
+        color = CineDarkBg,
+        tonalElevation = 8.dp,
+        border = androidx.compose.foundation.BorderStroke(1.dp, CineCardBorder)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceAround
+        ) {
+            // 1. Account / Cloud Sync Button
+            IconButton(
+                onClick = onOpenAccount,
+                modifier = Modifier
+                    .testTag("account_sync_top_button")
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(if (currentUser != null) CineSurfaceVariant else CineSurface)
+                    .border(
+                        1.dp,
+                        if (currentUser != null) CineGreen.copy(alpha = 0.5f) else Color.Transparent,
+                        CircleShape
+                    )
+            ) {
+                if (currentUser != null) {
+                    Text(
+                        text = (currentUser.displayName ?: currentUser.email ?: "U").take(1).uppercase(),
+                        color = CineGold,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    )
+                } else {
                     Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = "Global Entertainment Search",
+                        imageVector = Icons.Default.CloudSync,
+                        contentDescription = "Cloud Backup & Sync",
                         tint = CineGold,
-                        modifier = Modifier.size(19.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(6.dp))
-
-                IconButton(
-                    onClick = onOpenStats,
-                    modifier = Modifier
-                        .testTag("stats_icon_button")
-                        .size(38.dp)
-                        .clip(CircleShape)
-                        .background(CineSurface)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.BarChart,
-                        contentDescription = "Collection Statistics",
-                        tint = CineCyan,
-                        modifier = Modifier.size(19.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(6.dp))
-
-                IconButton(
-                    onClick = onAddNewMovie,
-                    modifier = Modifier
-                        .testTag("add_movie_top_button")
-                        .size(38.dp)
-                        .clip(CircleShape)
-                        .background(CineGold)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Add Movie",
-                        tint = CineDarkBg,
                         modifier = Modifier.size(20.dp)
                     )
                 }
+            }
+
+            // 2. Global Search Button
+            IconButton(
+                onClick = onOpenGlobalSearch,
+                modifier = Modifier
+                    .testTag("global_search_top_button")
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(CineSurface)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = "Global Entertainment Search",
+                    tint = CineGold,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            // 3. Stats Button
+            IconButton(
+                onClick = onOpenStats,
+                modifier = Modifier
+                    .testTag("stats_icon_button")
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(CineSurface)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.BarChart,
+                    contentDescription = "Collection Statistics",
+                    tint = CineCyan,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            // 4. Add Movie Button
+            IconButton(
+                onClick = onAddNewMovie,
+                modifier = Modifier
+                    .testTag("add_movie_top_button")
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(CineGold)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Add Movie",
+                    tint = CineDarkBg,
+                    modifier = Modifier.size(22.dp)
+                )
             }
         }
     }

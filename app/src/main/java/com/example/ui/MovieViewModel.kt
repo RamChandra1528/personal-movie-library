@@ -410,6 +410,14 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // REAL-TIME GLOBAL ENTERTAINMENT SEARCH OPERATIONS
+    fun searchGlobal(query: String) {
+        val clean = query.trim()
+        if (clean.isBlank()) return
+        _globalSearchQuery.value = clean
+        _currentScreen.value = Screen.GLOBAL_SEARCH
+        executeGlobalSearch(clean, page = 1)
+    }
+
     fun onGlobalQueryChanged(query: String) {
         _globalSearchQuery.value = query
         _globalSearchPage.value = 1

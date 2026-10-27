@@ -36,9 +36,15 @@ class WikipediaSearchProvider(
         if (cleanQuery.isEmpty()) return@withContext emptyList()
 
         try {
-            // First search Wikipedia for pages matching "<query> film" or "<query>"
-            val encodedSearch = URLEncoder.encode("$cleanQuery film", "UTF-8")
-            val searchUrl = "https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=$encodedSearch&srlimit=6&format=json"
+            val hasMovieWord = cleanQuery.contains("movie", ignoreCase = true) || cleanQuery.contains("film", ignoreCase = true)
+            val baseKeywords = cleanQuery
+                .replace(Regex("(?i)\\bmovies?\\b"), "")
+                .replace(Regex("(?i)\\bfilms?\\b"), "")
+                .trim()
+
+            val primarySearch = if (hasMovieWord) cleanQuery else "$cleanQuery film"
+            val encodedSearch = URLEncoder.encode(primarySearch, "UTF-8")
+            val searchUrl = "https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=$encodedSearch&srlimit=10&format=json"
 
             val request = Request.Builder()
                 .url(searchUrl)
@@ -46,32 +52,67 @@ class WikipediaSearchProvider(
                 .build()
 
             val response = client.newCall(request).execute()
-            if (!response.isSuccessful) return@withContext emptyList()
-
-            val responseBody = response.body?.string() ?: return@withContext emptyList()
-            val json = JSONObject(responseBody)
-            val queryObj = json.optJSONObject("query") ?: return@withContext emptyList()
-            val searchArr = queryObj.optJSONArray("search") ?: return@withContext emptyList()
-
             val titles = mutableListOf<String>()
-            for (i in 0 until searchArr.length()) {
-                val item = searchArr.getJSONObject(i)
-                val title = item.optString("title")
-                if (title.isNotEmpty()) {
-                    titles.add(title)
+
+            if (response.isSuccessful) {
+                val responseBody = response.body?.string()
+                if (responseBody != null) {
+                    val json = JSONObject(responseBody)
+                    val queryObj = json.optJSONObject("query")
+                    val searchArr = queryObj?.optJSONArray("search")
+                    if (searchArr != null) {
+                        for (i in 0 until searchArr.length()) {
+                            val item = searchArr.getJSONObject(i)
+                            val title = item.optString("title")
+                            // Filter out meta, list, and index pages
+                            val isMeta = title.startsWith("List of", ignoreCase = true) ||
+                                    title.startsWith("Timeline of", ignoreCase = true) ||
+                                    title.startsWith("Category:", ignoreCase = true) ||
+                                    title.startsWith("Index of", ignoreCase = true)
+                            if (title.isNotEmpty() && !isMeta) {
+                                titles.add(title)
+                            }
+                        }
+                    }
                 }
             }
 
-            // Also check OpenSearch for fuzzy corrections if titles is small
+            // If base keywords differ (e.g. "Marvel movies" -> "Marvel"), also search base keyword
+            if (titles.size < 4 && baseKeywords.isNotEmpty() && !baseKeywords.equals(cleanQuery, ignoreCase = true)) {
+                val encodedBase = URLEncoder.encode(baseKeywords, "UTF-8")
+                val baseUrl = "https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=$encodedBase&srlimit=6&format=json"
+                val baseReq = Request.Builder().url(baseUrl).header("User-Agent", userAgent).build()
+                val baseResp = client.newCall(baseReq).execute()
+                if (baseResp.isSuccessful) {
+                    val body = baseResp.body?.string()
+                    if (body != null) {
+                        val json = JSONObject(body)
+                        val arr = json.optJSONObject("query")?.optJSONArray("search")
+                        if (arr != null) {
+                            for (i in 0 until arr.length()) {
+                                val t = arr.getJSONObject(i).optString("title")
+                                val isMeta = t.startsWith("List of", ignoreCase = true) ||
+                                        t.startsWith("Timeline of", ignoreCase = true)
+                                if (t.isNotEmpty() && !isMeta && !titles.contains(t)) {
+                                    titles.add(t)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Also check OpenSearch for fuzzy corrections if titles is still small
             if (titles.size < 3) {
                 val fuzzyTitles = fetchOpenSearchSuggestions(cleanQuery)
                 for (ft in fuzzyTitles) {
-                    if (!titles.contains(ft)) titles.add(ft)
+                    val isMeta = ft.startsWith("List of", ignoreCase = true)
+                    if (!titles.contains(ft) && !isMeta) titles.add(ft)
                 }
             }
 
             // Fetch summary for top results in parallel
-            val deferred = titles.take(5).map { title ->
+            val deferred = titles.take(6).map { title ->
                 async {
                     fetchSummaryForTitle(title)
                 }

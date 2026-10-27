@@ -123,6 +123,7 @@ fun CineVaultApp(viewModel: MovieViewModel) {
                         onOpenAddDialog = viewModel::openAddDialog,
                         onOpenGlobalSearch = { viewModel.navigateTo(Screen.GLOBAL_SEARCH) },
                         onOpenStats = { viewModel.navigateTo(Screen.STATS) },
+                        onSearchGlobal = { query -> viewModel.searchGlobal(query) },
                         currentUser = currentUser,
                         isSyncing = syncStatus.isSyncing,
                         onOpenAccount = viewModel::openAccountDialog,

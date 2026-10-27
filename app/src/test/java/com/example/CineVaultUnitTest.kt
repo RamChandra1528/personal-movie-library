@@ -134,4 +134,49 @@ class CineVaultUnitTest {
         assertEquals("Plan to Watch", WatchStatus.getDisplayName(WatchStatus.PLAN_TO_WATCH))
         assertEquals("Dropped", WatchStatus.getDisplayName(WatchStatus.DROPPED))
     }
+
+    @Test
+    fun testCuratedMarvelMoviesSearch() {
+        val marvelResults = com.example.service.CuratedEntertainmentRegistry.findMatching("Marvel movies")
+        assertTrue("Marvel movies search should return results", marvelResults.isNotEmpty())
+        val titles = marvelResults.map { it.title }
+        assertTrue("Should include Avengers: Endgame", titles.contains("Avengers: Endgame"))
+        assertTrue("Should include Iron Man", titles.contains("Iron Man"))
+        assertTrue("Should include Spider-Man: No Way Home", titles.contains("Spider-Man: No Way Home"))
+
+        // Every Marvel movie should have valid poster and release year
+        marvelResults.forEach { movie ->
+            assertTrue(movie.posterUrl != null && movie.posterUrl!!.startsWith("http"))
+            assertTrue(movie.releaseYear != null && movie.releaseYear!! >= 2008)
+        }
+    }
+
+    @Test
+    fun testCuratedHollywoodMoviesSearch() {
+        val hollywoodResults = com.example.service.CuratedEntertainmentRegistry.findMatching("Hollywood movies")
+        assertTrue("Hollywood movies search should return results", hollywoodResults.isNotEmpty())
+        val titles = hollywoodResults.map { it.title }
+        assertTrue("Should include Inception", titles.contains("Inception"))
+        assertTrue("Should include Titanic", titles.contains("Titanic"))
+        assertTrue("Should include The Dark Knight", titles.contains("The Dark Knight"))
+        assertTrue("Should include Interstellar", titles.contains("Interstellar"))
+
+        hollywoodResults.forEach { movie ->
+            assertTrue(movie.posterUrl != null && movie.posterUrl!!.startsWith("http"))
+            assertTrue(movie.director.isNotBlank())
+        }
+    }
+
+    @Test
+    fun testFuzzyRelevanceRankerFranchiseScoring() {
+        val endgame = com.example.service.CuratedEntertainmentRegistry.ALL_CURATED.first { it.title == "Avengers: Endgame" }
+        val (scoreMarvel, reasonMarvel) = FuzzyRelevanceRanker.scoreAndExplain(endgame, "Marvel movies")
+        assertTrue("Endgame should have high score for 'Marvel movies': $scoreMarvel", scoreMarvel >= 90f)
+        assertTrue(reasonMarvel.contains("Marvel"))
+
+        val inception = com.example.service.CuratedEntertainmentRegistry.ALL_CURATED.first { it.title == "Inception" }
+        val (scoreHw, reasonHw) = FuzzyRelevanceRanker.scoreAndExplain(inception, "Hollywood movies")
+        assertTrue("Inception should have high score for 'Hollywood movies': $scoreHw", scoreHw >= 90f)
+        assertTrue(reasonHw.contains("Hollywood"))
+    }
 }

@@ -11,26 +11,59 @@ object FuzzyRelevanceRanker {
     fun scoreAndExplain(movie: DiscoveredMovie, query: String): Pair<Float, String> {
         val q = query.trim().lowercase()
         val titleLower = movie.title.lowercase()
+        val cleanKeyword = q
+            .replace("movies", "")
+            .replace("movie", "")
+            .replace("films", "")
+            .replace("film", "")
+            .trim()
 
-        // 1. Exact title match
-        if (titleLower == q) {
+        // 0. Special Studio / Franchise Queries ("Marvel movies", "Hollywood movies", "MCU", etc.)
+        if (q.contains("marvel") || q.contains("mcu")) {
+            val isMarvel = movie.sourceName.contains("Marvel", ignoreCase = true) ||
+                    movie.alternateTitles.any { it.contains("Marvel", ignoreCase = true) } ||
+                    movie.genres.any { it.contains("Superhero", ignoreCase = true) } ||
+                    titleLower.contains("avenger") || titleLower.contains("spider-man") ||
+                    titleLower.contains("iron man") || titleLower.contains("thor") ||
+                    titleLower.contains("deadpool") || titleLower.contains("black panther")
+            if (isMarvel) {
+                return 96f to "Marvel Cinematic Universe"
+            }
+        }
+
+        if (q.contains("hollywood") || q.contains("blockbuster")) {
+            val isHollywood = movie.sourceName.contains("Hollywood", ignoreCase = true) ||
+                    movie.sourceName.contains("Warner", ignoreCase = true) ||
+                    movie.sourceName.contains("Paramount", ignoreCase = true) ||
+                    movie.sourceName.contains("Universal", ignoreCase = true) ||
+                    movie.sourceName.contains("Century Fox", ignoreCase = true) ||
+                    movie.director.contains("Nolan", ignoreCase = true) ||
+                    movie.director.contains("Spielberg", ignoreCase = true) ||
+                    movie.director.contains("Cameron", ignoreCase = true)
+            if (isHollywood) {
+                return 95f to "Hollywood Cinema Blockbuster"
+            }
+        }
+
+        // 1. Exact title match (with full query or stripped query)
+        if (titleLower == q || (cleanKeyword.isNotEmpty() && titleLower == cleanKeyword)) {
             return 100f to "Exact Title Match"
         }
 
         // 2. Starts with / Prefix match
-        if (titleLower.startsWith(q)) {
+        if (titleLower.startsWith(q) || (cleanKeyword.isNotEmpty() && titleLower.startsWith(cleanKeyword))) {
             return 90f to "Prefix Title Match"
         }
 
         // 3. Contains title substring
-        if (titleLower.contains(q)) {
-            return 82f to "Partial Title Match"
+        if (titleLower.contains(q) || (cleanKeyword.isNotEmpty() && titleLower.contains(cleanKeyword))) {
+            return 85f to "Title Match"
         }
 
         // 4. Alternate titles match
         for (alt in movie.alternateTitles) {
             val altLower = alt.lowercase()
-            if (altLower == q || altLower.contains(q)) {
+            if (altLower == q || altLower.contains(q) || (cleanKeyword.isNotEmpty() && altLower.contains(cleanKeyword))) {
                 return 80f to "Alternate Title: $alt"
             }
         }
@@ -43,32 +76,43 @@ object FuzzyRelevanceRanker {
 
         // 6. Actor / Cast match
         for (actor in movie.cast) {
-            if (actor.lowercase().contains(q) || q.contains(actor.lowercase())) {
+            val actorLower = actor.lowercase()
+            if (actorLower.contains(q) || q.contains(actorLower) ||
+                (cleanKeyword.isNotEmpty() && actorLower.contains(cleanKeyword))) {
                 return 75f to "Cast: $actor"
             }
         }
 
         // 7. Director match
-        if (movie.director.isNotBlank() && (movie.director.lowercase().contains(q) || q.contains(movie.director.lowercase()))) {
-            return 74f to "Director: ${movie.director}"
+        if (movie.director.isNotBlank()) {
+            val dirLower = movie.director.lowercase()
+            if (dirLower.contains(q) || q.contains(dirLower) ||
+                (cleanKeyword.isNotEmpty() && dirLower.contains(cleanKeyword))) {
+                return 74f to "Director: ${movie.director}"
+            }
         }
 
         // 8. Genre match
         for (genre in movie.genres) {
-            if (genre.lowercase().contains(q)) {
+            val genreLower = genre.lowercase()
+            if (genreLower.contains(q) || (cleanKeyword.isNotEmpty() && genreLower.contains(cleanKeyword))) {
                 return 65f to "Genre: $genre"
             }
         }
 
         // 9. Fuzzy Levenshtein similarity on title
-        val similarity = calculateSimilarity(titleLower, q)
+        val similarity = max(
+            calculateSimilarity(titleLower, q),
+            if (cleanKeyword.isNotEmpty()) calculateSimilarity(titleLower, cleanKeyword) else 0f
+        )
         if (similarity >= 0.70f) {
             val pct = (similarity * 100).toInt()
             return (60f + similarity * 20f) to "Fuzzy Match ($pct%)"
         }
 
         // 10. Keyword in synopsis
-        if (movie.synopsis.lowercase().contains(q)) {
+        if (movie.synopsis.lowercase().contains(q) ||
+            (cleanKeyword.isNotEmpty() && movie.synopsis.lowercase().contains(cleanKeyword))) {
             return 45f to "Theme / Keyword Match"
         }
 
@@ -110,6 +154,7 @@ object FuzzyRelevanceRanker {
             cost = newCost
             newCost = swap
         }
+
         return cost[len0 - 1]
     }
 }
