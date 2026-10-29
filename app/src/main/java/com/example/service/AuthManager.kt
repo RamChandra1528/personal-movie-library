@@ -6,7 +6,9 @@ import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialCancellationException
 import com.example.R
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.FirebaseApp
@@ -24,7 +26,7 @@ import kotlinx.coroutines.tasks.await
 /**
  * Manages Google Sign-In authentication via Jetpack CredentialManager.
  * Strictly adheres to zero-trust security: only interactive Google Sign-In is supported.
- * Anonymous authentication and email/password are never used.
+ * Anonymous authentication and email/password are never used in production application code.
  */
 class AuthManager(private val context: Context) {
 
@@ -70,24 +72,26 @@ class AuthManager(private val context: Context) {
         ?: throw IllegalStateException("Operation requires an authenticated user")
 
     private fun getServerClientId(): String {
-        return try {
-            val resId = context.resources.getIdentifier("default_web_client_id", "string", context.packageName)
-            if (resId != 0) {
-                context.getString(resId)
-            } else {
-                "55029889838-bb3hpspdt4192as923g4tef8pi6a0vtq.apps.googleusercontent.com"
-            }
-        } catch (e: Exception) {
-            "55029889838-bb3hpspdt4192as923g4tef8pi6a0vtq.apps.googleusercontent.com"
-        }
+        return context.getString(R.string.default_web_client_id)
     }
 
+    /**
+     * Interactive Google Sign-In flow via Jetpack CredentialManager.
+     */
     suspend fun signInWithGoogle(activityContext: Context): Result<FirebaseUser> {
         return try {
             val firebaseAuth = auth ?: return Result.failure(
                 IllegalStateException("Cloud sign-in is unavailable because Firebase is not configured for this app.")
             )
-            val serverClientId = getServerClientId()
+
+            val serverClientId = try {
+                getServerClientId()
+            } catch (e: Exception) {
+                return Result.failure(
+                    IllegalStateException("Google Sign-In configuration missing: default_web_client_id not found")
+                )
+            }
+
             val signInOption = GetSignInWithGoogleOption.Builder(serverClientId)
                 .build()
 
@@ -111,70 +115,59 @@ class AuthManager(private val context: Context) {
             } else {
                 Result.failure(IllegalStateException("Unexpected credential format: ${credential::class.java.name}"))
             }
+        } catch (e: GetCredentialCancellationException) {
+            Log.w(TAG, "Google Sign-In flow cancelled or dismissed: ${e.message}", e)
+            Result.failure(e)
         } catch (e: Exception) {
             Log.e(TAG, "Sign in with Google failed", e)
             Result.failure(e)
         }
     }
 
-    suspend fun signInWithEmail(email: String, password: String): Result<FirebaseUser> {
-        val cleanEmail = email.trim()
-        if (cleanEmail.isEmpty() || !cleanEmail.contains("@")) {
-            return Result.failure(IllegalArgumentException("Please enter a valid email address."))
+    /**
+     * Silent auto-sign-in check on app launch to restore credentials if available.
+     */
+    suspend fun attemptAutoSignIn(): Result<FirebaseUser?> {
+        val existingUser = auth?.currentUser
+        if (existingUser != null) {
+            _currentUser.value = existingUser
+            return Result.success(existingUser)
         }
-        if (password.isEmpty()) {
-            return Result.failure(IllegalArgumentException("Please enter your password."))
-        }
-        val firebaseAuth = auth ?: return Result.failure(
-            IllegalStateException("Cloud authentication is unavailable because Firebase is not configured.")
-        )
-        return try {
-            val authResult = firebaseAuth.signInWithEmailAndPassword(cleanEmail, password).await()
-            val user = authResult.user ?: throw IllegalStateException("Firebase user was null after sign-in")
-            _currentUser.value = user
-            Result.success(user)
-        } catch (e: Exception) {
-            Log.e(TAG, "Email sign in failed", e)
-            Result.failure(e)
-        }
-    }
 
-    suspend fun registerWithEmail(email: String, password: String): Result<FirebaseUser> {
-        val cleanEmail = email.trim()
-        if (cleanEmail.isEmpty() || !cleanEmail.contains("@")) {
-            return Result.failure(IllegalArgumentException("Please enter a valid email address."))
-        }
-        if (password.length < 6) {
-            return Result.failure(IllegalArgumentException("Password must be at least 6 characters."))
-        }
-        val firebaseAuth = auth ?: return Result.failure(
-            IllegalStateException("Cloud authentication is unavailable because Firebase is not configured.")
-        )
         return try {
-            val authResult = firebaseAuth.createUserWithEmailAndPassword(cleanEmail, password).await()
-            val user = authResult.user ?: throw IllegalStateException("Firebase user was null after registration")
-            _currentUser.value = user
-            Result.success(user)
-        } catch (e: Exception) {
-            Log.e(TAG, "Email registration failed", e)
-            Result.failure(e)
-        }
-    }
+            val firebaseAuth = auth ?: return Result.success(null)
+            val serverClientId = try {
+                getServerClientId()
+            } catch (_: Exception) {
+                return Result.success(null)
+            }
 
-    suspend fun sendPasswordReset(email: String): Result<Unit> {
-        val cleanEmail = email.trim()
-        if (cleanEmail.isEmpty() || !cleanEmail.contains("@")) {
-            return Result.failure(IllegalArgumentException("Please enter a valid email address."))
-        }
-        val firebaseAuth = auth ?: return Result.failure(
-            IllegalStateException("Cloud authentication is unavailable because Firebase is not configured.")
-        )
-        return try {
-            firebaseAuth.sendPasswordResetEmail(cleanEmail).await()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Log.e(TAG, "Password reset failed", e)
-            Result.failure(e)
+            val googleIdOption = GetGoogleIdOption.Builder()
+                .setFilterByAuthorizedAccounts(true)
+                .setServerClientId(serverClientId)
+                .setAutoSelectEnabled(true)
+                .build()
+
+            val request = GetCredentialRequest.Builder()
+                .addCredentialOption(googleIdOption)
+                .build()
+
+            val result = credentialManager.getCredential(context, request)
+            val credential = result.credential
+            if (credential is CustomCredential &&
+                credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+            ) {
+                val googleIdToken = GoogleIdTokenCredential.createFrom(credential.data).idToken
+                val authCredential = GoogleAuthProvider.getCredential(googleIdToken, null)
+                val authResult = firebaseAuth.signInWithCredential(authCredential).await()
+                val user = authResult.user
+                _currentUser.value = user
+                Result.success(user)
+            } else {
+                Result.success(null)
+            }
+        } catch (_: Exception) {
+            Result.success(null)
         }
     }
 

@@ -97,7 +97,7 @@ data class CloudMovie(
         )
 
         originalTitle?.let { map["originalTitle"] = it }
-        releaseYear?.let { map["releaseYear"] = it }
+        releaseYear?.let { if (it in 0..2200) map["releaseYear"] = it }
         releaseDate?.let { map["releaseDate"] = it }
         posterUrl?.let { map["posterUrl"] = it }
         backdropUrl?.let { map["backdropUrl"] = it }

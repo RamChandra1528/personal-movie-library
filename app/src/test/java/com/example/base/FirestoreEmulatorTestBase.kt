@@ -5,7 +5,6 @@ import androidx.test.core.app.ApplicationProvider
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.FirebaseFirestoreSettings
@@ -50,7 +49,7 @@ abstract class FirestoreEmulatorTestBase {
     databaseId = if (resId != 0) context.getString(resId) else "demo-database"
 
     val app = if (FirebaseApp.getApps(context).isEmpty()) {
-      val newApp = FirebaseApp.initializeApp(
+      FirebaseApp.initializeApp(
         context,
         FirebaseOptions.Builder()
           .setApplicationId("com.example.app")
@@ -58,21 +57,25 @@ abstract class FirestoreEmulatorTestBase {
           .setApiKey("fake-api-key-for-emulator")
           .build()
       )
-      val newFirestore = FirebaseFirestore.getInstance(newApp, databaseId)
-      newFirestore.useEmulator(EMULATOR_HOST, FIRESTORE_PORT)
-      newFirestore.firestoreSettings = FirebaseFirestoreSettings.Builder()
-        .setLocalCacheSettings(MemoryCacheSettings.newBuilder().build())
-        .build()
-
-      val newAuth = FirebaseAuth.getInstance(newApp)
-      newAuth.useEmulator(EMULATOR_HOST, AUTH_PORT)
-      newApp
     } else {
       FirebaseApp.getInstance()
     }
 
     firestore = FirebaseFirestore.getInstance(app, databaseId)
+    try {
+      firestore.useEmulator(EMULATOR_HOST, FIRESTORE_PORT)
+    } catch (_: Exception) {}
+
+    try {
+      firestore.firestoreSettings = FirebaseFirestoreSettings.Builder()
+        .setLocalCacheSettings(MemoryCacheSettings.newBuilder().build())
+        .build()
+    } catch (_: Exception) {}
+
     auth = FirebaseAuth.getInstance(app)
+    try {
+      auth.useEmulator(EMULATOR_HOST, AUTH_PORT)
+    } catch (_: Exception) {}
   }
 
   @After
@@ -88,7 +91,7 @@ abstract class FirestoreEmulatorTestBase {
     withTimeout(AUTH_TIMEOUT_MS) {
       val result = try {
         auth.signInWithEmailAndPassword(email, DEFAULT_PASSWORD).await()
-      } catch (unused: FirebaseAuthInvalidUserException) {
+      } catch (_: Exception) {
         auth.createUserWithEmailAndPassword(email, DEFAULT_PASSWORD).await()
       }
       checkNotNull(result.user?.uid) { "User auth failed" }

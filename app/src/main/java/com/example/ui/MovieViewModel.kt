@@ -89,27 +89,14 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
         // App launch & session restoration flow
         viewModelScope.launch {
             _loadingStatusMessage.value = "Starting CineVault..."
-            val startTime = System.currentTimeMillis()
             try {
                 // Check if an existing session is present
-                val user = authManager.currentUser.value
-                if (user != null) {
-                    _loadingStatusMessage.value = "Restoring cloud session & vault..."
-                    syncRepository.startSync(user.uid)
-                    delay(350)
-                } else {
-                    _loadingStatusMessage.value = "Preparing your personal library..."
-                }
+                authManager.attemptAutoSignIn()
             } catch (_: Exception) {
                 // Graceful fallback
+            } finally {
+                _isAppInitializing.value = false
             }
-
-            // Ensure smooth visual experience without flicker or sudden transitions (minimum 850ms)
-            val elapsed = System.currentTimeMillis() - startTime
-            if (elapsed < 850L) {
-                delay(850L - elapsed)
-            }
-            _isAppInitializing.value = false
         }
 
         // Listen for authentication changes to start/stop cloud synchronization
@@ -416,51 +403,14 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
             result.onSuccess { user ->
                 _quickAddNotification.value = "Signed in as ${user.displayName ?: user.email}"
                 _isSigningIn.value = false
+                val currentMovies = rawMovies.value
+                if (currentMovies.isNotEmpty()) {
+                    syncRepository.backupAllLocalMovies(user.uid, currentMovies)
+                }
+                closeAccountDialog()
             }.onFailure { error ->
                 _authError.value = error.localizedMessage ?: "Google Sign-In failed"
                 _isSigningIn.value = false
-            }
-        }
-    }
-
-    fun signInWithEmail(email: String, pass: String) {
-        viewModelScope.launch {
-            _isSigningIn.value = true
-            _authError.value = null
-            val result = authManager.signInWithEmail(email, pass)
-            result.onSuccess { user ->
-                _quickAddNotification.value = "Welcome back, ${user.email ?: "Member"}!"
-                _isSigningIn.value = false
-            }.onFailure { error ->
-                _authError.value = error.localizedMessage ?: "Sign-in failed"
-                _isSigningIn.value = false
-            }
-        }
-    }
-
-    fun registerWithEmail(email: String, pass: String) {
-        viewModelScope.launch {
-            _isSigningIn.value = true
-            _authError.value = null
-            val result = authManager.registerWithEmail(email, pass)
-            result.onSuccess { user ->
-                _quickAddNotification.value = "Account created for ${user.email}!"
-                _isSigningIn.value = false
-            }.onFailure { error ->
-                _authError.value = error.localizedMessage ?: "Registration failed"
-                _isSigningIn.value = false
-            }
-        }
-    }
-
-    fun resetPassword(email: String) {
-        viewModelScope.launch {
-            _authError.value = null
-            val result = authManager.sendPasswordReset(email)
-            result.onSuccess {
-                _quickAddNotification.value = "Password reset link sent to $email"
-            }.onFailure { error ->
-                _authError.value = error.localizedMessage ?: "Failed to send reset email"
             }
         }
     }
@@ -470,6 +420,7 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
             authManager.signOut()
             syncRepository.stopSyncAndClearLocal()
             _quickAddNotification.value = "Signed out of CineVault"
+            closeAccountDialog()
         }
     }
 

@@ -287,9 +287,12 @@ class FirestoreSyncRepository(
         // read-then-insert work prevents duplicate Room rows on a fresh install.
         mergeMutex.withLock {
             for (cloudMovie in cloudMovies) {
-                // A title alone is not a stable key: remakes commonly share a title. Match the
-                // same title and release year so both records survive local/cloud reconciliation.
-                val existingLocal = movieDao.findByTitleAndYear(cloudMovie.title, cloudMovie.releaseYear)
+                val year = cloudMovie.releaseYear
+                val existingLocal = if (year != null && year > 0) {
+                    movieDao.findByTitleAndYear(cloudMovie.title, year)
+                } else {
+                    movieDao.findByExactTitle(cloudMovie.title)
+                }
                 if (existingLocal != null) {
                     movieDao.updateMovie(cloudMovie.toEntity(localId = existingLocal.id))
                 } else {
